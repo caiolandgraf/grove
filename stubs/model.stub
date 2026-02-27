@@ -1,0 +1,23 @@
+package models
+
+import (
+	"time"
+
+	"{{.Module}}/internal/app"
+	"{{.Module}}/internal/database"
+	"gorm.io/gorm"
+)
+
+type {{.Name}} struct {
+	ID        string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func ({{.Name}}) TableName() string { return "{{.TableName}}" }
+
+// {{.Name}}s returns a repository scoped to the {{.Name}} model.
+func {{.Name}}s() *database.Repository[{{.Name}}] {
+	return database.New[{{.Name}}](app.DB)
+}

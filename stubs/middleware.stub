@@ -1,0 +1,12 @@
+package middleware
+
+import "net/http"
+
+// {{.Name}} is an HTTP middleware that handles {{.Name}} logic.
+func {{.Name}}(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: implement {{.Name}} middleware logic
+
+		next.ServeHTTP(w, r)
+	})
+}

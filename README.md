@@ -1,0 +1,242 @@
+<div align="center">
+
+<br />
+
+<pre><code style="color:#c82838">
+█▀▀ █▀█ █▀█ █░█ █▀▀
+█▄█ █▀▄ █▄█ ▀▄▀ ██▄
+</code></pre>
+
+<br />
+
+**Grove is an opinionated Go foundation for building structured, observable, production-ready applications.**
+
+<br />
+
+[![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
+
+<br />
+
+[**Documentation**](https://caiolandgraf.github.io/grove/) · [**Quick Start**](#quick-start) · [**Commands**](#commands) · [**Contributing**](#contributing)
+
+<br />
+
+</div>
+
+---
+
+## Overview
+
+Grove is a CLI that scaffolds and manages Go applications following a clean, layered project layout. It wires together [GORM](https://gorm.io), [fuego](https://github.com/go-fuego/fuego) and [Atlas](https://atlasgo.io) so you can generate models, controllers, DTOs, middlewares and migrations in seconds — and focus entirely on your business logic.
+
+| Tool | Role |
+|---|---|
+| [GORM](https://gorm.io) | ORM & typed repository layer |
+| [fuego](https://github.com/go-fuego/fuego) | HTTP router + automatic OpenAPI 3.1 |
+| [Atlas](https://atlasgo.io) | Schema migration engine |
+| [gest](https://github.com/caiolandgraf/gest) | Jest-inspired testing framework for Go |
+| [air](https://github.com/air-verse/air) _(optional)_ | Hot-reload via `grove serve` |
+
+---
+
+## Installation
+
+```bash
+go install github.com/caiolandgraf/grove@latest
+```
+
+Verify:
+
+```bash
+grove --help
+```
+
+> **Requirements:** Go 1.22+, [Atlas CLI](https://atlasgo.io/docs) for migration commands.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Scaffold a new project from the official template
+grove setup my-api
+
+# 2. Enter the project and configure your environment
+cd my-api && cp .env.example .env
+
+# 3. Start the development server
+grove serve
+```
+
+Your API is running at `http://localhost:8080`.  
+The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automatically.
+
+---
+
+## Commands
+
+### Generators
+
+| Command | Description |
+|---|---|
+| `grove make:model <Name>` | Scaffold a GORM model in `internal/models/` |
+| `grove make:model <Name> -m` | Scaffold model and generate a migration via Atlas |
+| `grove make:model <Name> -c` | Scaffold model and controller |
+| `grove make:model <Name> -mc` | Scaffold model, migration and controller |
+| `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` |
+| `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
+| `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
+| `grove make:migration <name>` | Generate a SQL migration via Atlas diff |
+| `grove make:resource <Name>` | Scaffold model + controller + DTO in one shot |
+
+### Testing
+
+| Command | Description |
+|---|---|
+| `grove make:test <Name>` | Scaffold a new [gest](https://github.com/caiolandgraf/gest) spec file in `internal/tests/` |
+| `grove test` | Run all spec files via gest |
+| `grove test -c` | Run specs and display a per-suite coverage report |
+
+> `grove make:test` automatically creates `internal/tests/main.go` (the gest entrypoint) if it does not exist yet.
+
+### Server & Build
+
+| Command | Description |
+|---|---|
+| `grove serve` | Start the dev server (uses `air` for hot-reload if available) |
+| `grove build` | Compile the application binary to `./bin/app` |
+| `grove setup <project-name>` | Scaffold a new project from the official template |
+
+### Database
+
+| Command | Description |
+|---|---|
+| `grove migrate` | Apply all pending migrations |
+| `grove migrate:rollback` | Rollback the last applied migration |
+| `grove migrate:status` | Show migration status |
+| `grove migrate:fresh` | Drop all tables and re-apply every migration ⚠️ |
+| `grove migrate:hash` | Rehash the `atlas.sum` file |
+
+### Shell Completion
+
+```bash
+grove completion [bash|zsh|fish|powershell]
+```
+
+```bash
+# Zsh — persist
+echo 'source <(grove completion zsh)' >> ~/.zshrc
+
+# Fish — persist
+grove completion fish > ~/.config/fish/completions/grove.fish
+```
+
+---
+
+## Project Structure
+
+```
+my-api/
+├── cmd/
+│   └── api/
+│       └── main.go              # Entry point
+├── internal/
+│   ├── app/                     # Shared singletons (DB, config)
+│   ├── controllers/             # fuego route handlers
+│   ├── dto/                     # Request and response types
+│   ├── middleware/              # HTTP middlewares
+│   ├── models/                  # GORM models
+│   ├── routes/                  # Route registration
+│   └── tests/                   # gest spec files
+│       ├── main.go              # gest entrypoint (auto-created)
+│       └── post_spec.go         # example spec
+├── migrations/                  # Atlas SQL migrations
+├── .env.example                 # Committed env template
+├── atlas.hcl                    # Atlas configuration
+└── go.mod
+```
+
+The `internal/` boundary is intentional — it prevents external packages from importing your application internals, keeping the codebase clean as it grows.
+
+---
+
+## Typical Workflow
+
+```bash
+# 1. Scaffold a full resource (model + controller + DTO)
+grove make:resource Post
+
+# 2. Add fields to the model and DTO, then generate a migration
+grove make:migration create_posts_table
+
+# 3. Review the generated SQL in migrations/ then apply it
+grove migrate
+
+# 4. Register routes in internal/routes/routes.go
+#    fuego.Post(s, "/posts", controllers.CreatePost)
+
+# 5. Write tests for your new resource
+grove make:test Post
+
+# 6. Run the test suite
+grove test -c
+```
+
+---
+
+## Testing with gest
+
+Grove uses [gest](https://github.com/caiolandgraf/gest) — a Jest-inspired testing framework for Go with beautiful output and zero dependencies.
+
+```bash
+# Scaffold a spec file (creates internal/tests/main.go if needed)
+grove make:test UserService
+
+# Run all specs
+grove test
+
+# Run with per-suite coverage report
+grove test -c
+```
+
+Each spec file lives in `internal/tests/` and self-registers via `init()`:
+
+```go
+// internal/tests/user_service_spec.go
+package main
+
+import "github.com/caiolandgraf/gest/gest"
+
+func init() {
+    s := gest.Describe("UserService")
+
+    s.It("should create a user", func(t *gest.T) {
+        // ...
+        t.Expect(user.ID).Not().ToBeNil()
+    })
+
+    gest.Register(s)
+}
+```
+
+> **Note:** gest uses `_spec.go` instead of `_test.go` because the Go toolchain reserves `_test.go` for `go test`. gest runs via `go run`, so any other suffix works.
+
+---
+
+## Contributing
+
+Contributions are welcome — bug fixes, new commands, documentation improvements and ideas alike.
+
+1. Fork the repository
+2. Make your change and build with `make grove-build`
+3. Open a pull request with a clear description
+
+See the full documentation at **[caiolandgraf.github.io/grove](https://caiolandgraf.github.io/grove/)**.
+
+---
+
+## License
+
+MIT © [Caio Landgraf](https://github.com/caiolandgraf)

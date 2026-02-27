@@ -1,0 +1,22 @@
+package dto
+
+// Request DTOs
+
+type Create{{.Name}}Request struct {
+	// TODO: add fields
+}
+
+type Update{{.Name}}Request struct {
+	// TODO: add fields
+}
+
+// Response DTOs
+
+type {{.Name}}Response struct {
+	ID string `json:"id"`
+}
+
+type {{.Name}}sListResponse struct {
+	Items []{{.Name}}Response `json:"items"`
+	Total int                 `json:"total"`
+}

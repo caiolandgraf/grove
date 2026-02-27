@@ -1,0 +1,14 @@
+package main
+
+import "github.com/caiolandgraf/gest/gest"
+
+func init() {
+	s := gest.Describe("{{.Name}}")
+
+	s.It("should work", func(t *gest.T) {
+		// TODO: write your test here
+		t.Expect(true).ToBeTrue()
+	})
+
+	gest.Register(s)
+}

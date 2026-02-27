@@ -1,0 +1,34 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build cache
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Air (hot-reload)
+tmp/
+.air.toml
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docs site
+docs/node_modules/
+docs/dist/
