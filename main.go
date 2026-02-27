@@ -53,43 +53,73 @@ func buildBanner() string {
 		"    grove " + colorBlue + "test" + colorReset + "              Run all gest specs in internal/tests\n" +
 		"    grove " + colorBlue + "test -c" + colorReset + "           Run specs + display coverage report\n"
 
-	shell := "\n" +
-		"  " + colorBold + colorGray + "SHELL" + colorReset + "\n" +
+	setup := "\n" +
+		"  " + colorBold + colorGray + "SETUP" + colorReset + "\n" +
+		"    grove " + colorGray + "setup" + colorReset + "       <project-name>   Scaffold a new Grove project from template\n" +
 		"    grove " + colorGray + "completion" + colorReset + "  [bash|zsh|fish|powershell]   Generate completion script\n"
 
-	return logo + tagline + "\n" + sep + generators + server + database + testing + shell + "\n" + sep + "\n"
+	return logo + tagline + "\n" + sep + generators + server + database + testing + setup + "\n" + sep + "\n"
 }
 
 func init() {
-	// completion
-	rootCmd.AddCommand(completionCmd)
+	// ── Command groups (organises the "Available Commands" cobra help block) ──
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "generators", Title: "Generators:"},
+		&cobra.Group{ID: "testing", Title: "Testing:"},
+		&cobra.Group{ID: "server", Title: "Server & Build:"},
+		&cobra.Group{ID: "database", Title: "Database:"},
+		&cobra.Group{ID: "setup", Title: "Setup:"},
+	)
 
-	// setup
-	rootCmd.AddCommand(setupCmd)
+	// ── Generators ────────────────────────────────────────────────────────────
+	makeModelCmd.GroupID = "generators"
+	makeControllerCmd.GroupID = "generators"
+	makeDtoCmd.GroupID = "generators"
+	makeMiddlewareCmd.GroupID = "generators"
+	makeMigrationCmd.GroupID = "generators"
+	makeResourceCmd.GroupID = "generators"
+	makeTestCmd.GroupID = "generators"
 
-	// make:* commands
 	rootCmd.AddCommand(makeModelCmd)
 	rootCmd.AddCommand(makeControllerCmd)
 	rootCmd.AddCommand(makeDtoCmd)
-	rootCmd.AddCommand(makeRequestCmd)
+	rootCmd.AddCommand(makeRequestCmd) // hidden backward-compat alias
 	rootCmd.AddCommand(makeMiddlewareCmd)
 	rootCmd.AddCommand(makeMigrationCmd)
 	rootCmd.AddCommand(makeResourceCmd)
 	rootCmd.AddCommand(makeTestCmd)
 
-	// server
+	// ── Testing ───────────────────────────────────────────────────────────────
+	testCmd.GroupID = "testing"
+
+	rootCmd.AddCommand(testCmd)
+
+	// ── Server & Build ────────────────────────────────────────────────────────
+	serveCmd.GroupID = "server"
+	buildCmd.GroupID = "server"
+
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
 
-	// migrate commands
+	// ── Database ──────────────────────────────────────────────────────────────
+	migrateCmd.GroupID = "database"
+	migrateRollbackCmd.GroupID = "database"
+	migrateStatusCmd.GroupID = "database"
+	migrateFreshCmd.GroupID = "database"
+	migrateHashCmd.GroupID = "database"
+
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(migrateRollbackCmd)
 	rootCmd.AddCommand(migrateStatusCmd)
 	rootCmd.AddCommand(migrateFreshCmd)
 	rootCmd.AddCommand(migrateHashCmd)
 
-	// testing
-	rootCmd.AddCommand(testCmd)
+	// ── Setup ─────────────────────────────────────────────────────────────────
+	setupCmd.GroupID = "setup"
+	completionCmd.GroupID = "setup"
+
+	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(completionCmd)
 }
 
 func main() {
