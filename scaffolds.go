@@ -4,9 +4,24 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/template"
 )
+
+// gestModule is the fully-qualified module path used by go get to install or
+// update gest to the latest published version.
+const gestModule = "github.com/caiolandgraf/gest@latest"
+
+// ensureGest runs "go get github.com/caiolandgraf/gest@latest" in the current
+// working directory, adding or upgrading gest in the project's go.mod.
+// Output from the command is forwarded with grove's standard indentation.
+func ensureGest() error {
+	c := exec.Command("go", "get", gestModule)
+	c.Stdout = newIndentWriter(os.Stdout, "  ")
+	c.Stderr = newIndentWriter(os.Stderr, "  ")
+	return c.Run()
+}
 
 // ──────────────────────────────────────────────
 // Model
@@ -159,6 +174,7 @@ func scaffoldMiddleware(name string) error {
 
 // scaffoldTestMain creates internal/tests/main.go (the gest entrypoint) if it
 // does not already exist. It is called automatically by make:test.
+// On first creation it also runs "go get" to add gest to the project's go.mod.
 func scaffoldTestMain() error {
 	destPath := filepath.Join("internal", "tests", "main.go")
 
@@ -184,6 +200,26 @@ func scaffoldTestMain() error {
 	}
 
 	printCreated("Test entrypoint", "main", destPath)
+
+	// Install gest into the project's go.mod the first time the entrypoint is
+	// created so that "go run ./internal/tests" works immediately.
+	fmt.Println()
+	fmt.Printf(
+		"  %sInstalling gest%s %s\n",
+		colorGray, colorReset,
+		gray("(go get "+gestModule+")"),
+	)
+	fmt.Println()
+
+	if err := ensureGest(); err != nil {
+		fmt.Println(warn("Failed to install gest automatically."))
+		fmt.Printf(
+			"  %sRun manually: %s\n",
+			colorGray,
+			colorGreen+"go get "+gestModule+colorReset,
+		)
+	}
+
 	return nil
 }
 

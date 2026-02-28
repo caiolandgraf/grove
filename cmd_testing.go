@@ -119,6 +119,27 @@ func runTest(_ *cobra.Command, _ []string) error {
 		)
 	}
 
+	// Always pull the latest gest before running so specs never run against
+	// a stale version of the framework.
+	fmt.Println()
+	fmt.Printf(
+		"  %sUpdating gest%s %s\n",
+		colorGray, colorReset,
+		gray("(go get "+gestModule+")"),
+	)
+	fmt.Println()
+
+	if err := ensureGest(); err != nil {
+		fmt.Println(
+			warn("Could not update gest — running with current version."),
+		)
+		fmt.Printf(
+			"  %sRun manually: %s\n",
+			colorGray,
+			colorGreen+"go get "+gestModule+colorReset,
+		)
+	}
+
 	goArgs := []string{"run", testsDir}
 	if testCoverage {
 		goArgs = append(goArgs, "-c")
