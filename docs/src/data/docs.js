@@ -744,7 +744,7 @@ func init() {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Compiles and runs every <code>*_spec.go</code> file in <code>internal/tests/</code>. Pass <code>-c</code> to display a per-suite coverage report after the run. Pass <code>-w</code> to enter watch mode (requires <code>air</code>) so specs re-run automatically on file changes; combine both as <code>-wc</code>.'
+            text: 'Compiles and runs every <code>*_spec.go</code> file in <code>internal/tests/</code>. Pass <code>-c</code> to display a per-suite coverage report after the run. Pass <code>-w</code> to enter watch mode so specs re-run automatically on file changes — no external tools required. Combine both as <code>-wc</code>.'
           },
           {
             type: 'code',
@@ -762,7 +762,7 @@ func init() {
               ],
               [
                 '<code>-w</code>, <code>--watch</code>',
-                'Watch mode: re-run specs on file changes (requires <code>air</code>)'
+                'Watch mode: re-run specs on file changes'
               ],
               [
                 '<code>-wc</code>',
@@ -776,7 +776,7 @@ func init() {
             label: 'examples',
             code: `grove test         # run all specs
 grove test -c      # run all specs + coverage report
-grove test -w      # watch mode — re-run specs on every save (requires air)
+grove test -w      # watch mode — re-run specs on every save
 grove test -wc     # watch mode + coverage report`
           },
           {

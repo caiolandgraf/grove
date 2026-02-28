@@ -36,6 +36,7 @@ func buildBanner() string {
 
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
+		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save\n" +
 		"    grove " + colorBlue + "serve" + colorReset + "             Start the development server\n" +
 		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n"
 
@@ -97,9 +98,11 @@ func init() {
 	rootCmd.AddCommand(testCmd)
 
 	// ── Server & Build ────────────────────────────────────────────────────────
+	devCmd.GroupID = "server"
 	serveCmd.GroupID = "server"
 	buildCmd.GroupID = "server"
 
+	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
 

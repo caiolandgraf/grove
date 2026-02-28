@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -96,7 +95,7 @@ var testCmd = &cobra.Command{
 
 Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report.
 Pass ` + colorGreen + `-w` + colorReset + ` to enter watch mode — specs re-run automatically on every
-file change. Requires ` + colorCyan + `air` + colorReset + ` (` + colorGray + `go install github.com/air-verse/air@latest` + colorReset + `).
+file change. No external tools required.
 Flags can be combined: ` + colorGreen + `-wc` + colorReset + ` runs watch mode with the coverage report.
 
 ` + colorGray + `Examples:` + colorReset + `
@@ -116,7 +115,7 @@ func init() {
 	testCmd.Flags().BoolVarP(
 		&testWatch,
 		"watch", "w", false,
-		"Re-run specs automatically on file changes (requires air)",
+		"Re-run specs automatically on file changes",
 	)
 }
 
@@ -222,37 +221,17 @@ func runTestOnce(testsDir string) error {
 // ──────────────────────────────────────────────
 
 func runTestWatch(testsDir string) error {
-	if _, err := exec.LookPath("air"); err != nil {
-		return fmt.Errorf(
-			"air not found in PATH\n\n"+
-				"  Install it with: %s\n\n"+
-				"  Then re-run: %s",
-			colorCyan+"go install github.com/air-verse/air@latest"+colorReset,
-			colorGreen+"grove test -w"+colorReset,
-		)
-	}
-
-	// Build output goes into .grove_tmp so it is always gitignored.
-	bin := filepath.Join(".grove_tmp", "grove_tests")
-	fullBin := bin
+	// gest's built-in -w flag handles the watch loop natively — no external
+	// tool required.
+	goArgs := []string{"run", testsDir, "-w"}
 	if testCoverage {
-		fullBin = bin + " -c"
+		goArgs = append(goArgs, "-c")
 	}
 
-	airCfg := buildAirConfig(bin, fullBin)
-
-	// Write config to a temp file so we don't litter the project root.
-	tmpFile, err := os.CreateTemp("", "grove-air-*.toml")
-	if err != nil {
-		return fmt.Errorf("failed to create temp air config: %w", err)
+	label := "go run " + testsDir + " -w"
+	if testCoverage {
+		label += " -c"
 	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.WriteString(airCfg); err != nil {
-		tmpFile.Close()
-		return fmt.Errorf("failed to write air config: %w", err)
-	}
-	tmpFile.Close()
 
 	fmt.Println()
 	fmt.Printf(
@@ -266,9 +245,15 @@ func runTestWatch(testsDir string) error {
 			colorGray, colorReset,
 		)
 	}
+	fmt.Printf(
+		"  %s%s%s\n",
+		colorGray,
+		gray("("+label+")"),
+		colorReset,
+	)
 	fmt.Println()
 
-	c := exec.Command("air", "-c", tmpFile.Name())
+	c := exec.Command("go", goArgs...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
@@ -278,7 +263,7 @@ func runTestWatch(testsDir string) error {
 	defer signal.Stop(sigCh)
 
 	if err := c.Start(); err != nil {
-		return fmt.Errorf("failed to start air: %w", err)
+		return fmt.Errorf("failed to start tests in watch mode: %w", err)
 	}
 
 	go func() {
@@ -295,37 +280,8 @@ func runTestWatch(testsDir string) error {
 			fmt.Println()
 			return nil
 		}
-		return fmt.Errorf("air exited with error: %w", err)
+		return fmt.Errorf("one or more specs failed")
 	}
 
 	return nil
-}
-
-// buildAirConfig returns an air TOML configuration that builds the tests
-// binary on every change and re-runs it.
-func buildAirConfig(bin, fullBin string) string {
-	return `root = "."
-tmp_dir = ".grove_tmp"
-
-[build]
-  cmd        = "go build -o ` + bin + ` ./internal/tests/"
-  bin        = "` + bin + `"
-  full_bin   = "` + fullBin + `"
-  include_ext = ["go"]
-  exclude_dir = ["tmp", "bin", "vendor", ".git", ".grove_tmp"]
-  delay      = 400
-  kill_delay = 200
-
-[log]
-  time = false
-
-[color]
-  main    = "magenta"
-  watcher = "cyan"
-  build   = "yellow"
-  runner  = "green"
-
-[misc]
-  clean_on_exit = true
-`
 }
