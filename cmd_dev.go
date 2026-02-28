@@ -22,8 +22,9 @@ Configure behaviour via the ` + colorCyan + `[dev]` + colorReset + ` section in 
   ` + colorGray + `[dev]` + colorReset + `
   ` + colorGray + `root        = "."` + colorReset + `
   ` + colorGray + `bin         = ".grove/tmp/app"` + colorReset + `
-  ` + colorGray + `build_cmd   = "go build -o .grove/tmp/app ."` + colorReset + `
+  ` + colorGray + `build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"` + colorReset + `
   ` + colorGray + `watch_dirs  = ["."]` + colorReset + `
+  ` + colorGray + `exclude     = [".grove", "vendor", "node_modules", "tests"]` + colorReset + `
   ` + colorGray + `extensions  = [".go"]` + colorReset + `
   ` + colorGray + `debounce_ms = 300` + colorReset + `
 

@@ -201,9 +201,9 @@ grove setup my-api --module github.com/acme/my-api`
             code: `[dev]
 root        = "."
 bin         = ".grove/tmp/app"
-build_cmd   = "go build -o .grove/tmp/app ."
+build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
 watch_dirs  = [".", "internal", "controllers", "models"]
-exclude     = [".grove", "vendor", "node_modules"]
+exclude     = [".grove", "vendor", "node_modules", "tests"]
 extensions  = [".go"]
 debounce_ms = 300`
           },

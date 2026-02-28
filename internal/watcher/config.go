@@ -40,12 +40,18 @@ type Config struct {
 // values so that grove dev works with zero configuration.
 func DefaultConfig() Config {
 	return Config{
-		Root:       ".",
-		TmpDir:     ".grove/tmp",
-		Bin:        ".grove/tmp/app",
-		BuildCmd:   "go build -o .grove/tmp/app .",
-		WatchDirs:  []string{"."},
-		Exclude:    []string{".grove", "vendor", "node_modules", ".git"},
+		Root:      ".",
+		TmpDir:    ".grove/tmp",
+		Bin:       ".grove/tmp/app",
+		BuildCmd:  "go build -o .grove/tmp/app ./cmd/api/",
+		WatchDirs: []string{"."},
+		Exclude: []string{
+			".grove",
+			"vendor",
+			"node_modules",
+			".git",
+			"tests",
+		},
 		Extensions: []string{".go"},
 		DebounceMs: 300,
 	}

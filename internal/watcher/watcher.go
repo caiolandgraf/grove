@@ -157,6 +157,7 @@ func (w *Watcher) Start() error {
 // shouldHandle returns true when event should trigger a rebuild:
 //   - Op must be Write or Create (Rename/Remove/Chmod are ignored).
 //   - The path must not be inside an excluded directory.
+//   - The filename must not end in _spec.go (test specs never trigger a rebuild).
 //   - The file extension must be in the configured allow-list.
 func (w *Watcher) shouldHandle(event fsnotify.Event) bool {
 	if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
@@ -164,6 +165,11 @@ func (w *Watcher) shouldHandle(event fsnotify.Event) bool {
 	}
 
 	if w.isExcluded(event.Name) {
+		return false
+	}
+
+	// Spec files must never cause a rebuild regardless of their location.
+	if strings.HasSuffix(filepath.Base(event.Name), "_spec.go") {
 		return false
 	}
 
