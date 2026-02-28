@@ -221,14 +221,16 @@ func runTestOnce(testsDir string) error {
 // ──────────────────────────────────────────────
 
 func runTestWatch(testsDir string) error {
-	// gest's built-in -w flag handles the watch loop natively — no external
-	// tool required.
-	goArgs := []string{"run", testsDir, "-w"}
+	// gest's built-in -w flag handles the watch loop natively.
+	// We run `go run . -w` with Dir set to testsDir so that gest's
+	// internal `go build .` and directory watcher operate from the
+	// correct location instead of the project root.
+	goArgs := []string{"run", ".", "-w"}
 	if testCoverage {
 		goArgs = append(goArgs, "-c")
 	}
 
-	label := "go run " + testsDir + " -w"
+	label := "go run . -w"
 	if testCoverage {
 		label += " -c"
 	}
@@ -254,6 +256,7 @@ func runTestWatch(testsDir string) error {
 	fmt.Println()
 
 	c := exec.Command("go", goArgs...)
+	c.Dir = testsDir
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
