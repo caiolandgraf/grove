@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.2.1"
+const version = "1.2.2"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -26,7 +26,8 @@ func buildBanner() string {
 		logoG1 + `  █▀▀ █▀█ █▀█ █░█ █▀▀  ` + colorReset + "\n" +
 		logoG3 + `  █▄█ █▀▄ █▄█ ▀▄▀ ██▄  ` + colorReset + "\n"
 
-	tagline := "\n  " + colorDim + "An opinionated Go foundation for production-ready applications" + colorReset + "\n"
+	tagline := "\n  " + colorDim + "An opinionated Go foundation for production-ready applications" + colorReset +
+		"  " + colorCyan + "v" + version + colorReset + "\n"
 
 	generators := "\n" +
 		"  " + colorBold + colorGray + "GENERATORS" + colorReset + "\n" +
