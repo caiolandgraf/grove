@@ -236,13 +236,13 @@ grove build -o ./bin/my-api`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new GORM model in <code>internal/models/</code>. The name is automatically converted to PascalCase and the file to snake_case. Use the <code>-m</code> and <code>-c</code> flags to also generate a migration and/or controller in the same step.'
+            text: 'Scaffolds a new GORM model in <code>internal/models/</code>. The name is automatically converted to PascalCase and the file to snake_case. Combine flags to scaffold additional layers in the same step — or use <code>-r</code> as a shorthand for the full resource.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove make:model <Name> [-m] [-c]`
+            code: `grove make:model <Name> [-m] [-c] [-d] [-r]`
           },
           {
             type: 'table',
@@ -257,8 +257,12 @@ grove build -o ./bin/my-api`
                 'Also scaffold a fuego controller'
               ],
               [
-                '<code>-mc</code>',
-                'Shorthand for <code>-m -c</code> — migration + controller'
+                '<code>-d</code>, <code>--dto</code>',
+                'Also scaffold a DTO request/response file'
+              ],
+              [
+                '<code>-r</code>, <code>--resource</code>',
+                'Full resource — shorthand for <code>-m -c -d</code> combined'
               ]
             ]
           },
@@ -269,7 +273,10 @@ grove build -o ./bin/my-api`
             code: `grove make:model Post            # model only
 grove make:model Post -m         # model + migration
 grove make:model Post -c         # model + controller
+grove make:model Post -d         # model + DTO
 grove make:model Post -mc        # model + migration + controller
+grove make:model Post -mcd       # model + migration + controller + DTO
+grove make:model Post -r         # full resource (same as -mcd)
 grove make:model order_item      # → OrderItem`
           },
           {

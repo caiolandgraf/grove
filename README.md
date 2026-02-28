@@ -82,9 +82,12 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | Command | Description |
 |---|---|
 | `grove make:model <Name>` | Scaffold a GORM model in `internal/models/` |
-| `grove make:model <Name> -m` | Scaffold model and generate a migration via Atlas |
-| `grove make:model <Name> -c` | Scaffold model and controller |
-| `grove make:model <Name> -mc` | Scaffold model, migration and controller |
+| `grove make:model <Name> -m` | Scaffold model + migration (Atlas diff) |
+| `grove make:model <Name> -c` | Scaffold model + controller |
+| `grove make:model <Name> -d` | Scaffold model + DTO |
+| `grove make:model <Name> -mc` | Scaffold model + migration + controller |
+| `grove make:model <Name> -mcd` | Scaffold model + migration + controller + DTO |
+| `grove make:model <Name> -r` | Full resource — shorthand for `-mcd` |
 | `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` |
 | `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
