@@ -101,8 +101,16 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:test <Name>` | Scaffold a new [gest](https://github.com/caiolandgraf/gest) spec file in `internal/tests/` |
 | `grove test` | Run all spec files via gest |
 | `grove test -c` | Run specs and display a per-suite coverage report |
+| `grove test -w` | Watch mode — re-run specs on every save (requires `air`) |
+| `grove test -wc` | Watch mode + coverage report |
 
 > `grove make:test` automatically creates `internal/tests/main.go` (the gest entrypoint) if it does not exist yet.
+>
+> Watch mode requires the `air` tool. Install it with:
+>
+> ```bash
+> go install github.com/air-verse/air@latest
+> ```
 
 ### Server & Build
 

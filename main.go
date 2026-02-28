@@ -51,7 +51,9 @@ func buildBanner() string {
 		"  " + colorBold + colorGray + "TESTING" + colorReset + "\n" +
 		"    grove " + colorGreen + "make:test" + colorReset + "        <Name>   Scaffold a new gest spec file\n" +
 		"    grove " + colorBlue + "test" + colorReset + "              Run all gest specs in internal/tests\n" +
-		"    grove " + colorBlue + "test -c" + colorReset + "           Run specs + display coverage report\n"
+		"    grove " + colorBlue + "test -c" + colorReset + "           Run specs + display coverage report\n" +
+		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run specs on every save\n" +
+		"    grove " + colorBlue + "test -wc" + colorReset + "          Watch mode + coverage report\n"
 
 	setup := "\n" +
 		"  " + colorBold + colorGray + "SETUP" + colorReset + "\n" +

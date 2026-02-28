@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -67,9 +68,9 @@ func runMakeTest(_ *cobra.Command, args []string) error {
 		colorGreen+"grove test"+colorReset,
 	)
 	fmt.Printf(
-		"    %s3.%s Run %s to include a coverage report\n",
+		"    %s3.%s Run %s to watch and re-run on every save\n",
 		colorGray, colorReset,
-		colorGreen+"grove test -c"+colorReset,
+		colorGreen+"grove test -w"+colorReset,
 	)
 	fmt.Println()
 
@@ -80,7 +81,10 @@ func runMakeTest(_ *cobra.Command, args []string) error {
 // test
 // ──────────────────────────────────────────────
 
-var testCoverage bool
+var (
+	testCoverage bool
+	testWatch    bool
+)
 
 var testCmd = &cobra.Command{
 	Use:   "test",
@@ -90,12 +94,16 @@ var testCmd = &cobra.Command{
 	) + ` compiles and runs every ` + colorCyan + `*_spec.go` + colorReset + ` file found in
 ` + colorCyan + `internal/tests/` + colorReset + ` using the ` + colorCyan + `gest` + colorReset + ` testing framework.
 
-Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report after the run.
+Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report.
+Pass ` + colorGreen + `-w` + colorReset + ` to enter watch mode — specs re-run automatically on every
+file change. Requires ` + colorCyan + `air` + colorReset + ` (` + colorGray + `go install github.com/air-verse/air@latest` + colorReset + `).
+Flags can be combined: ` + colorGreen + `-wc` + colorReset + ` runs watch mode with the coverage report.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove test
   grove test -c
-  grove test --coverage`,
+  grove test -w
+  grove test -wc`,
 	RunE: runTest,
 }
 
@@ -104,6 +112,11 @@ func init() {
 		&testCoverage,
 		"coverage", "c", false,
 		"Display a per-suite coverage report",
+	)
+	testCmd.Flags().BoolVarP(
+		&testWatch,
+		"watch", "w", false,
+		"Re-run specs automatically on file changes (requires air)",
 	)
 }
 
@@ -119,8 +132,18 @@ func runTest(_ *cobra.Command, _ []string) error {
 		)
 	}
 
-	// Always pull the latest gest before running so specs never run against
-	// a stale version of the framework.
+	if testWatch {
+		return runTestWatch(testsDir)
+	}
+
+	return runTestOnce(testsDir)
+}
+
+// ──────────────────────────────────────────────
+// One-shot run
+// ──────────────────────────────────────────────
+
+func runTestOnce(testsDir string) error {
 	fmt.Println()
 	fmt.Printf(
 		"  %sUpdating gest%s %s\n",
@@ -192,4 +215,117 @@ func runTest(_ *cobra.Command, _ []string) error {
 	}
 
 	return nil
+}
+
+// ──────────────────────────────────────────────
+// Watch mode
+// ──────────────────────────────────────────────
+
+func runTestWatch(testsDir string) error {
+	if _, err := exec.LookPath("air"); err != nil {
+		return fmt.Errorf(
+			"air not found in PATH\n\n"+
+				"  Install it with: %s\n\n"+
+				"  Then re-run: %s",
+			colorCyan+"go install github.com/air-verse/air@latest"+colorReset,
+			colorGreen+"grove test -w"+colorReset,
+		)
+	}
+
+	// Build output goes into .grove_tmp so it is always gitignored.
+	bin := filepath.Join(".grove_tmp", "grove_tests")
+	fullBin := bin
+	if testCoverage {
+		fullBin = bin + " -c"
+	}
+
+	airCfg := buildAirConfig(bin, fullBin)
+
+	// Write config to a temp file so we don't litter the project root.
+	tmpFile, err := os.CreateTemp("", "grove-air-*.toml")
+	if err != nil {
+		return fmt.Errorf("failed to create temp air config: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(airCfg); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to write air config: %w", err)
+	}
+	tmpFile.Close()
+
+	fmt.Println()
+	fmt.Printf(
+		"  %s WATCH %s  Watching for changes — press %s to stop\n",
+		colorBgGreen, colorReset,
+		bold("Ctrl+C"),
+	)
+	if testCoverage {
+		fmt.Printf(
+			"  %sCoverage report enabled%s\n",
+			colorGray, colorReset,
+		)
+	}
+	fmt.Println()
+
+	c := exec.Command("air", "-c", tmpFile.Name())
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Stdin = os.Stdin
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	if err := c.Start(); err != nil {
+		return fmt.Errorf("failed to start air: %w", err)
+	}
+
+	go func() {
+		sig := <-sigCh
+		if c.Process != nil {
+			_ = c.Process.Signal(sig)
+		}
+	}()
+
+	if err := c.Wait(); err != nil {
+		if isSignalError(err) {
+			fmt.Println()
+			fmt.Println(gray("  Watch stopped."))
+			fmt.Println()
+			return nil
+		}
+		return fmt.Errorf("air exited with error: %w", err)
+	}
+
+	return nil
+}
+
+// buildAirConfig returns an air TOML configuration that builds the tests
+// binary on every change and re-runs it.
+func buildAirConfig(bin, fullBin string) string {
+	return `root = "."
+tmp_dir = ".grove_tmp"
+
+[build]
+  cmd        = "go build -o ` + bin + ` ./internal/tests/"
+  bin        = "` + bin + `"
+  full_bin   = "` + fullBin + `"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin", "vendor", ".git", ".grove_tmp"]
+  delay      = 400
+  kill_delay = 200
+
+[log]
+  time = false
+
+[color]
+  main    = "magenta"
+  watcher = "cyan"
+  build   = "yellow"
+  runner  = "green"
+
+[misc]
+  clean_on_exit = true
+`
 }
