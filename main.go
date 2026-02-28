@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.2.0"
+const version = "1.2.1"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -142,7 +142,9 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, fail(err.Error()))
+		if msg := err.Error(); msg != "" {
+			fmt.Fprintln(os.Stderr, fail(msg))
+		}
 		os.Exit(1)
 	}
 }

@@ -26,7 +26,7 @@ Configure behaviour via the ` + colorCyan + `[dev]` + colorReset + ` section in 
   ` + colorGray + `watch_dirs  = ["."]` + colorReset + `
   ` + colorGray + `exclude     = [".grove", "vendor", "node_modules", "tests"]` + colorReset + `
   ` + colorGray + `extensions  = [".go"]` + colorReset + `
-  ` + colorGray + `debounce_ms = 300` + colorReset + `
+  ` + colorGray + `debounce_ms = 50` + colorReset + `
 
 All fields are optional — sensible defaults are used when ` + colorCyan + `grove.toml` + colorReset + `
 is absent or the ` + colorCyan + `[dev]` + colorReset + ` section is omitted.

@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,6 +30,7 @@ const (
 	ansiBgGreen = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
 	ansiBgRed   = "\033[48;2;195;55;55m\033[38;2;255;255;255m"
 	ansiBgBlue  = "\033[48;2;60;120;220m\033[38;2;255;255;255m"
+	ansiBgGrove = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
 )
 
 func badge(
@@ -145,7 +147,12 @@ func (w *Watcher) Start() error {
 			logDev(ansiGray + "Stopping application…" + ansiReset)
 			w.proc.Stop()
 			fmt.Println()
-			logDev(ansiBold + "🌿 Grove dev stopped." + ansiReset)
+			logDev(
+				badge(
+					ansiBgGrove,
+					"GROVE DEV",
+				) + "  " + ansiGray + "stopped." + ansiReset,
+			)
 			fmt.Println()
 			return nil
 		}
@@ -227,21 +234,17 @@ func (w *Watcher) scheduleRebuild() {
 // runRebuild compiles the project and, on success, restarts the binary.
 // Build errors are printed but do not stop the watcher.
 func (w *Watcher) runRebuild() {
-	logDev(ansiBold + ansiCyan + "🔨 Recompilando…" + ansiReset)
+	fmt.Println()
+	logDev(
+		badge(ansiBgBlue, "RE-BUILDING"),
+	)
+	fmt.Println()
 
 	start := time.Now()
 
 	if err := w.build(); err != nil {
 		fmt.Println()
-		logDev(
-			badge(
-				ansiBgRed,
-				"ERRO",
-			) + "  " + ansiRed + "❌ Build error:" + ansiReset,
-		)
-		// The build command already wrote the compiler output to Stderr, so
-		// we only print a short summary here.
-		logDev(ansiDim + "    " + err.Error() + ansiReset)
+		logDev(badge(ansiBgRed, "BUILD FAILED"))
 		fmt.Println()
 		return
 	}
@@ -249,19 +252,20 @@ func (w *Watcher) runRebuild() {
 	elapsed := time.Since(start)
 
 	if err := w.proc.Restart(w.cfg.Bin); err != nil {
+		fmt.Println()
 		logDev(
 			badge(
 				ansiBgRed,
 				"ERRO",
-			) + "  " + ansiRed + "❌ Failed to start binary: " + err.Error() + ansiReset,
+			) + "  " + ansiRed + ansiBold + "❌ Failed to start binary: " + ansiReset + ansiRed + err.Error() + ansiReset,
 		)
+		fmt.Println()
 		return
 	}
 
 	fmt.Println()
 	logDev(
-		badge(ansiBgGreen, "OK") + "  " +
-			ansiGreen + "✅ App reiniciado" + ansiReset +
+		badge(ansiBgGreen, "APP RESTARTED") +
 			"  " + ansiGray + "(" + fmtElapsed(elapsed) + ")" + ansiReset,
 	)
 	fmt.Println()
@@ -276,9 +280,10 @@ func (w *Watcher) build() error {
 
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = w.cfg.Root
-	// Pipe compiler output indented for visual alignment.
-	cmd.Stdout = newPrefixWriter(os.Stdout, "    ")
-	cmd.Stderr = newPrefixWriter(os.Stderr, "    ")
+	// Pipe compiler output through the build writer which colourises each line.
+	bw := newBuildOutputWriter(os.Stderr)
+	cmd.Stdout = bw
+	cmd.Stderr = bw
 
 	return cmd.Run()
 }
@@ -325,7 +330,10 @@ func (w *Watcher) printHeader() {
 	fmt.Println(sep)
 	fmt.Println()
 	logDev(
-		ansiBold + "🌿 Grove dev" + ansiReset + "  " + ansiGray + "watching for changes — Ctrl+C to stop" + ansiReset,
+		badge(
+			ansiBgGrove,
+			"GROVE DEV",
+		) + "  " + ansiGray + "watching for changes — Ctrl+C to stop" + ansiReset,
 	)
 	fmt.Println()
 	logDev(
@@ -355,43 +363,53 @@ func fmtElapsed(d time.Duration) string {
 	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
-// ── prefixWriter ─────────────────────────────────────────────────────────────
+// ── buildOutputWriter ─────────────────────────────────────────────────────────
 
-// newPrefixWriter wraps w and prepends prefix to every line of output.
-// This keeps build errors visually aligned with grove's own log lines.
-func newPrefixWriter(w *os.File, prefix string) *prefixWriter {
-	return &prefixWriter{w: w, pfx: []byte(prefix), atSOL: true}
+// buildOutputWriter processes go compiler output line by line and applies
+// context-aware colouring:
+//
+//   - Package header lines ("# module/pkg") → gray + dim, no error marker.
+//   - All other non-empty lines            → fully red, prefixed with ×.
+//
+// This matches the visual language of gest and makes it easy to scan which
+// package failed and which specific symbols are undefined.
+type buildOutputWriter struct {
+	w   *os.File
+	buf []byte
 }
 
-type prefixWriter struct {
-	w     *os.File
-	pfx   []byte
-	atSOL bool
+func newBuildOutputWriter(w *os.File) *buildOutputWriter {
+	return &buildOutputWriter{w: w}
 }
 
-func (pw *prefixWriter) Write(p []byte) (n int, err error) {
-	for len(p) > 0 {
-		if pw.atSOL {
-			if _, err = pw.w.Write(pw.pfx); err != nil {
-				return
-			}
-			pw.atSOL = false
+func (bw *buildOutputWriter) Write(p []byte) (n int, err error) {
+	bw.buf = append(bw.buf, p...)
+
+	for {
+		nl := bytes.IndexByte(bw.buf, '\n')
+		if nl < 0 {
+			break
 		}
-		idx := strings.IndexByte(string(p), '\n')
-		if idx < 0 {
-			var nn int
-			nn, err = pw.w.Write(p)
-			n += nn
-			return
-		}
-		var nn int
-		nn, err = pw.w.Write(p[:idx+1])
-		n += nn
-		if err != nil {
-			return
-		}
-		p = p[idx+1:]
-		pw.atSOL = true
+		bw.writeLine(string(bw.buf[:nl]))
+		bw.buf = bw.buf[nl+1:]
 	}
-	return
+
+	return len(p), nil
+}
+
+// writeLine emits a single compiler output line with appropriate styling.
+func (bw *buildOutputWriter) writeLine(line string) {
+	if strings.TrimSpace(line) == "" {
+		fmt.Fprintln(bw.w)
+		return
+	}
+
+	if strings.HasPrefix(line, "# ") {
+		// Package header — subdued so it doesn't compete with the errors.
+		fmt.Fprintf(bw.w, "  %s%s%s\n", ansiGray+ansiDim, line, ansiReset)
+		return
+	}
+
+	// Error / warning line — fully red with × marker.
+	fmt.Fprintf(bw.w, "  %s× %s%s\n", ansiRed, line, ansiReset)
 }

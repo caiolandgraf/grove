@@ -53,7 +53,7 @@ func DefaultConfig() Config {
 			"tests",
 		},
 		Extensions: []string{".go"},
-		DebounceMs: 300,
+		DebounceMs: 50,
 	}
 }
 

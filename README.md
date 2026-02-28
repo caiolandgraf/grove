@@ -213,7 +213,7 @@ build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
 watch_dirs  = [".", "internal", "controllers", "models"]
 exclude     = [".grove", "vendor", "node_modules", "tests"]
 extensions  = [".go"]
-debounce_ms = 300
+debounce_ms = 50
 ```
 
 All fields are optional. When `grove.toml` is absent or the `[dev]` section is omitted, sensible defaults are applied and `grove dev` works out of the box.

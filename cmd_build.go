@@ -33,24 +33,28 @@ func init() {
 func runBuild(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 	fmt.Printf(
-		"  %sBuilding application%s %s\n",
-		colorGray, colorReset,
-		gray("(go build -o "+buildOutput+" ./cmd/api/)"),
+		"  %s  %s\n",
+		badge(colorBgBlue, "BUILDING"),
+		gray("go build -o "+buildOutput+" ./cmd/api/"),
 	)
 	fmt.Println()
 
 	if err := ensureDir("bin"); err != nil {
-		return fmt.Errorf("failed to create bin/ directory: %w", err)
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	start := time.Now()
 
+	bw := newBuildOutputWriter(os.Stderr)
 	c := exec.Command("go", "build", "-o", buildOutput, "./cmd/api/")
-	c.Stdout = newIndentWriter(os.Stdout, "  ")
-	c.Stderr = newIndentWriter(os.Stderr, "  ")
+	c.Stdout = bw
+	c.Stderr = bw
 
 	if err := c.Run(); err != nil {
-		return fmt.Errorf("build failed: %w", err)
+		fmt.Println()
+		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
+		fmt.Println()
+		return fmt.Errorf("")
 	}
 
 	elapsed := time.Since(start)

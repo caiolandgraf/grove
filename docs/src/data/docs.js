@@ -205,7 +205,7 @@ build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
 watch_dirs  = [".", "internal", "controllers", "models"]
 exclude     = [".grove", "vendor", "node_modules", "tests"]
 extensions  = [".go"]
-debounce_ms = 300`
+debounce_ms = 50`
           },
           {
             type: 'table',
@@ -243,7 +243,7 @@ debounce_ms = 300`
               ],
               [
                 '<code>debounce_ms</code>',
-                '<code>300</code>',
+                '<code>50</code>',
                 'Milliseconds to wait after the last change before rebuilding'
               ]
             ]

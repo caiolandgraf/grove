@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -66,6 +67,50 @@ func nextSteps() string {
 }
 func bold(msg string) string { return colorBold + msg + colorReset }
 func gray(msg string) string { return colorGray + msg + colorReset }
+func badge(bg, label string) string {
+	return bg + " " + label + " " + colorReset
+}
+
+// ──────────────────────────────────────────────
+// buildOutputWriter
+// ──────────────────────────────────────────────
+
+// buildOutputWriter processes go compiler output line by line:
+//   - Package header lines ("# module/pkg") → gray + dim, no marker.
+//   - All other non-empty lines             → red, prefixed with ×.
+type buildOutputWriter struct {
+	w   *os.File
+	buf []byte
+}
+
+func newBuildOutputWriter(w *os.File) *buildOutputWriter {
+	return &buildOutputWriter{w: w}
+}
+
+func (bw *buildOutputWriter) Write(p []byte) (n int, err error) {
+	bw.buf = append(bw.buf, p...)
+	for {
+		nl := bytes.IndexByte(bw.buf, '\n')
+		if nl < 0 {
+			break
+		}
+		bw.writeLine(string(bw.buf[:nl]))
+		bw.buf = bw.buf[nl+1:]
+	}
+	return len(p), nil
+}
+
+func (bw *buildOutputWriter) writeLine(line string) {
+	if strings.TrimSpace(line) == "" {
+		fmt.Fprintln(bw.w)
+		return
+	}
+	if strings.HasPrefix(line, "# ") {
+		fmt.Fprintf(bw.w, "  %s%s%s\n", colorGray+colorDim, line, colorReset)
+		return
+	}
+	fmt.Fprintf(bw.w, "  %s× %s%s\n", colorRed, line, colorReset)
+}
 
 // ──────────────────────────────────────────────
 // indentWriter
