@@ -8,10 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const version = "1.2.0"
+
 var rootCmd = &cobra.Command{
 	Use:           "grove",
 	Short:         "An opinionated Go foundation for production-ready applications",
 	Long:          buildBanner(),
+	Version:       version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -65,6 +68,16 @@ func buildBanner() string {
 }
 
 func init() {
+	// ── Version template ──────────────────────────────────────────────────────
+	rootCmd.SetVersionTemplate(
+		"\n" +
+			logoG1 + `  █▀▀ █▀█ █▀█ █░█ █▀▀  ` + colorReset + "\n" +
+			logoG3 + `  █▄█ █▀▄ █▄█ ▀▄▀ ██▄  ` + colorReset + "\n\n" +
+			"  " + colorBold + "Grove" + colorReset +
+			"  " + colorCyan + "v{{.Version}}" + colorReset +
+			"  " + colorGray + "github.com/caiolandgraf/grove" + colorReset + "\n\n",
+	)
+
 	// ── Command groups (organises the "Available Commands" cobra help block) ──
 	rootCmd.AddGroup(
 		&cobra.Group{ID: "generators", Title: "Generators:"},
