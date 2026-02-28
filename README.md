@@ -50,7 +50,8 @@ go install github.com/caiolandgraf/grove@latest
 Verify:
 
 ```bash
-grove --help
+grove -v        # print version
+grove --help    # full command reference
 ```
 
 > **Requirements:** Go 1.22+, [Atlas CLI](https://atlasgo.io/docs) for migration commands.
@@ -189,6 +190,33 @@ grove make:test Post
 # 6. Run the test suite
 grove test -c
 ```
+
+---
+
+## Hot Reload with `grove dev`
+
+Grove ships a built-in hot reload watcher — no Air, no external tools required.
+
+```bash
+grove dev
+```
+
+On every `.go` save Grove recompiles and restarts your binary automatically. A debounce window collapses burst saves into a single rebuild, and newly created subdirectories are picked up at runtime without restarting.
+
+Configure behaviour via the optional `[dev]` section in `grove.toml` at the project root:
+
+```toml
+[dev]
+root        = "."
+bin         = ".grove/tmp/app"
+build_cmd   = "go build -o .grove/tmp/app ."
+watch_dirs  = [".", "internal", "controllers", "models"]
+exclude     = [".grove", "vendor", "node_modules"]
+extensions  = [".go"]
+debounce_ms = 300
+```
+
+All fields are optional. When `grove.toml` is absent or the `[dev]` section is omitted, sensible defaults are applied and `grove dev` works out of the box.
 
 ---
 

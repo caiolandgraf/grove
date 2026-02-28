@@ -28,7 +28,8 @@ export const sections = [
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove --help`
+            code: `grove --version   # print version
+grove --help      # full command reference`
           },
           {
             type: 'note',
@@ -172,6 +173,85 @@ grove serve`
             label: 'examples',
             code: `grove setup my-api
 grove setup my-api --module github.com/acme/my-api`
+          }
+        ]
+      },
+      {
+        id: 'cmd-dev',
+        title: 'grove dev',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Compiles and runs your application, then watches for file changes and automatically recompiles and restarts the binary on every save. No external tools required — hot reload is built directly into Grove.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove dev`
+          },
+          {
+            type: 'paragraph',
+            text: 'Behaviour is fully configurable via the optional <code>[dev]</code> section in <code>grove.toml</code>. All fields are optional — when the file is absent or the section is omitted, sensible defaults are used and <code>grove dev</code> works out of the box.'
+          },
+          {
+            type: 'code',
+            lang: 'toml',
+            label: 'grove.toml',
+            code: `[dev]
+root        = "."
+bin         = ".grove/tmp/app"
+build_cmd   = "go build -o .grove/tmp/app ."
+watch_dirs  = [".", "internal", "controllers", "models"]
+exclude     = [".grove", "vendor", "node_modules"]
+extensions  = [".go"]
+debounce_ms = 300`
+          },
+          {
+            type: 'table',
+            head: ['Field', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>root</code>',
+                '<code>.</code>',
+                'Working directory for build commands'
+              ],
+              [
+                '<code>bin</code>',
+                '<code>.grove/tmp/app</code>',
+                'Path to the compiled binary'
+              ],
+              [
+                '<code>build_cmd</code>',
+                '<code>go build -o .grove/tmp/app .</code>',
+                'Command used to compile the project'
+              ],
+              [
+                '<code>watch_dirs</code>',
+                '<code>["."]</code>',
+                'Directories to watch for file changes (recursive)'
+              ],
+              [
+                '<code>exclude</code>',
+                '<code>[".grove", "vendor", "node_modules"]</code>',
+                'Directory names to ignore'
+              ],
+              [
+                '<code>extensions</code>',
+                '<code>[".go"]</code>',
+                'File extensions that trigger a rebuild'
+              ],
+              [
+                '<code>debounce_ms</code>',
+                '<code>300</code>',
+                'Milliseconds to wait after the last change before rebuilding'
+              ]
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'Newly created subdirectories are picked up automatically at runtime — no restart of <code>grove dev</code> required.'
           }
         ]
       },
