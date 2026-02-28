@@ -72,6 +72,49 @@ func badge(bg, label string) string {
 }
 
 // ──────────────────────────────────────────────
+// filteredWriter
+// ──────────────────────────────────────────────
+
+// filteredWriter wraps an io.Writer and silently drops any line whose trimmed
+// content starts with one of the configured prefixes.  Used to suppress
+// framework-internal log lines (e.g. "gest: watching for changes…") that
+// should not appear in grove's own output.
+type filteredWriter struct {
+	w       io.Writer
+	buf     []byte
+	filters []string
+}
+
+func newFilteredWriter(w io.Writer, filters ...string) *filteredWriter {
+	return &filteredWriter{w: w, filters: filters}
+}
+
+func (fw *filteredWriter) Write(p []byte) (n int, err error) {
+	fw.buf = append(fw.buf, p...)
+	for {
+		nl := bytes.IndexByte(fw.buf, '\n')
+		if nl < 0 {
+			break
+		}
+		line := string(fw.buf[:nl])
+		fw.buf = fw.buf[nl+1:]
+
+		trimmed := strings.TrimSpace(line)
+		suppressed := false
+		for _, f := range fw.filters {
+			if strings.HasPrefix(trimmed, f) {
+				suppressed = true
+				break
+			}
+		}
+		if !suppressed {
+			fmt.Fprintln(fw.w, line)
+		}
+	}
+	return len(p), nil
+}
+
+// ──────────────────────────────────────────────
 // buildOutputWriter
 // ──────────────────────────────────────────────
 

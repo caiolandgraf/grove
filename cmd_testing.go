@@ -255,10 +255,16 @@ func runTestWatch(testsDir string) error {
 	)
 	fmt.Println()
 
+	// Filter out gest's own internal log lines so grove controls the UX.
+	fw := newFilteredWriter(os.Stdout,
+		"gest: running tests",
+		"gest: watching for changes",
+	)
+
 	c := exec.Command("go", goArgs...)
 	c.Dir = testsDir
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
+	c.Stdout = fw
+	c.Stderr = fw
 	c.Stdin = os.Stdin
 
 	sigCh := make(chan os.Signal, 1)
@@ -269,22 +275,31 @@ func runTestWatch(testsDir string) error {
 		return fmt.Errorf("failed to start tests in watch mode: %w", err)
 	}
 
+	// interrupted is buffered so the goroutine never blocks even if c.Wait()
+	// returns before the select is reached.
+	interrupted := make(chan struct{}, 1)
+
 	go func() {
 		sig := <-sigCh
+		interrupted <- struct{}{}
 		if c.Process != nil {
 			_ = c.Process.Signal(sig)
 		}
 	}()
 
 	if err := c.Wait(); err != nil {
-		if isSignalError(err) {
-			fmt.Println()
-			fmt.Println(gray("  Watch stopped."))
-			fmt.Println()
-			return nil
+		select {
+		case <-interrupted:
+			// Ctrl+C — intentional shutdown, not a test failure.
+		default:
+			if !isSignalError(err) {
+				return fmt.Errorf("one or more specs failed")
+			}
 		}
-		return fmt.Errorf("one or more specs failed")
 	}
 
+	fmt.Println()
+	fmt.Println(gray("  Watch stopped."))
+	fmt.Println()
 	return nil
 }
