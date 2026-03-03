@@ -61,7 +61,10 @@ cp .env.example .env
 # edit .env with your database credentials
 
 # 4. Start the development server with built-in hot reload
-grove dev`
+grove dev
+
+# — or, if you prefer Air for hot-reload —
+grove dev:air`
           },
           {
             type: 'paragraph',
@@ -116,7 +119,7 @@ grove dev`
               [
                 '<a href="https://github.com/air-verse/air" target="_blank">air</a> (optional)',
                 'latest',
-                'Hot-reload via <code>grove serve</code> — not needed for <code>grove dev</code>'
+                'Hot-reload via <code>grove dev:air</code> — not needed for <code>grove dev</code>'
               ],
               [
                 'PostgreSQL (or any GORM driver)',
@@ -128,7 +131,7 @@ grove dev`
           {
             type: 'note',
             kind: 'tip',
-            text: '<code>grove dev</code> provides built-in hot reload without any external tools. <code>air</code> is only needed if you use <code>grove serve</code> and want hot-reload there.'
+            text: '<code>grove dev</code> provides built-in hot reload without any external tools. <code>air</code> is only needed if you use <code>grove dev:air</code>.'
           }
         ]
       }
@@ -256,23 +259,28 @@ debounce_ms = 50`
         ]
       },
       {
-        id: 'cmd-serve',
-        title: 'grove serve',
+        id: 'cmd-dev-air',
+        title: 'grove dev:air',
         blocks: [
           {
             type: 'paragraph',
-            text: 'Starts the development HTTP server. If <code>air</code> is installed it will be used for hot-reload; otherwise falls back to <code>go run ./cmd/api/main.go</code>.'
+            text: 'Starts the development HTTP server using <a href="https://github.com/air-verse/air" target="_blank">Air</a> for hot-reload. If <code>air</code> is not installed it falls back to <code>go run ./cmd/api/main.go</code>.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove serve`
+            code: `grove dev:air`
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: 'For a zero-dependency hot-reload experience use <code>grove dev</code> instead — it has a built-in watcher that requires no external tools whatsoever.'
           },
           {
             type: 'note',
             kind: 'tip',
-            text: 'SIGINT (<kbd>Ctrl+C</kbd>) is forwarded to the child process so it can shut down gracefully.'
+            text: 'Install Air with <code>go install github.com/air-verse/air@latest</code>. SIGINT (<kbd>Ctrl+C</kbd>) is forwarded to the child process so it can shut down gracefully.'
           }
         ]
       },

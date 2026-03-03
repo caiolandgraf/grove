@@ -41,7 +41,7 @@ func buildBanner() string {
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
 		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save (built-in, no Air)\n" +
-		"    grove " + colorBlue + "serve" + colorReset + "             Start the development server (uses Air if available)\n" +
+		"    grove " + colorBlue + "dev:air" + colorReset + "           Start the development server using Air for hot-reload\n" +
 		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n"
 
 	database := "\n" +
@@ -113,11 +113,11 @@ func init() {
 
 	// ── Server & Build ────────────────────────────────────────────────────────
 	devCmd.GroupID = "server"
-	serveCmd.GroupID = "server"
+	devAirCmd.GroupID = "server"
 	buildCmd.GroupID = "server"
 
 	rootCmd.AddCommand(devCmd)
-	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(devAirCmd)
 	rootCmd.AddCommand(buildCmd)
 
 	// ── Database ──────────────────────────────────────────────────────────────

@@ -284,7 +284,7 @@ const features = [
   {
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>`,
     title: 'Built-in hot reload',
-    desc: 'grove dev watches your files, rebuilds and restarts the binary on every save — no Air, no external tools, no configuration required.'
+    desc: 'grove dev has a built-in watcher — no Air, no config. Prefer Air? grove dev:air uses it automatically if installed.'
   },
   {
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>`,
@@ -314,7 +314,7 @@ const stack = [
   },
   {
     name: 'air',
-    role: 'Hot-reload for development',
+    role: 'Hot-reload via grove dev:air (optional)',
     url: 'https://github.com/air-verse/air'
   },
   { name: 'Go', role: '1.22+ required', url: 'https://go.dev' }

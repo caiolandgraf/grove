@@ -10,20 +10,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start the development server",
-	Long: bold("serve") + ` starts the development HTTP server.
+var devAirCmd = &cobra.Command{
+	Use:   "dev:air",
+	Short: "Start the development server using Air for hot-reload",
+	Long: bold(
+		"dev:air",
+	) + ` starts the development HTTP server using ` + colorCyan + `air` + colorReset + ` for hot-reload.
 
-If ` + colorCyan + `air` + colorReset + ` is installed it will be used for hot-reload.
-Otherwise falls back to ` + colorCyan + `go run ./cmd/api/main.go` + colorReset + `.
+If ` + colorCyan + `air` + colorReset + ` is not installed it falls back to ` + colorCyan + `go run ./cmd/api/main.go` + colorReset + `.
+
+For a zero-dependency hot-reload experience use ` + colorGreen + `grove dev` + colorReset + ` instead —
+it has a built-in watcher that requires no external tools.
 
 ` + colorGray + `Examples:` + colorReset + `
-  grove serve`,
-	RunE: runServe,
+  grove dev:air`,
+	RunE: runDevAir,
 }
 
-func runServe(_ *cobra.Command, _ []string) error {
+func runDevAir(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 
 	var c *exec.Cmd
@@ -48,6 +52,11 @@ func runServe(_ *cobra.Command, _ []string) error {
 			colorGray,
 			colorCyan+"go install github.com/air-verse/air@latest"+colorReset,
 		)
+		fmt.Printf(
+			"  %sTip: use %s for built-in hot-reload with no external tools\n",
+			colorGray,
+			colorGreen+"grove dev"+colorReset,
+		)
 		fmt.Println()
 		c = exec.Command("go", "run", "./cmd/api/main.go")
 	}
@@ -56,8 +65,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
 
-	// Forward SIGINT / SIGTERM so the child process gets a chance to
-	// shut down gracefully before grove itself exits.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
@@ -73,8 +80,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}()
 
 	if err := c.Wait(); err != nil {
-		// Ignore the error produced by a signal-triggered exit so we
-		// don't print a confusing message when the user hits Ctrl-C.
 		if c.ProcessState != nil && !c.ProcessState.Success() {
 			if isSignalError(err) {
 				fmt.Println()
@@ -94,8 +99,6 @@ func isSignalError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// exec.ExitError wraps the exit status; a signal-killed process has no
-	// numeric exit code on Unix — checking the string is the portable way.
 	msg := err.Error()
 	return msg == "signal: interrupt" ||
 		msg == "signal: terminated" ||

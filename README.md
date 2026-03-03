@@ -38,7 +38,7 @@ Grove is a CLI that scaffolds and manages Go applications following a clean, lay
 | [fuego](https://github.com/go-fuego/fuego) | HTTP router + automatic OpenAPI 3.1 |
 | [Atlas](https://atlasgo.io) | Schema migration engine |
 | [gest](https://github.com/caiolandgraf/gest) | Jest-inspired testing framework for Go |
-| [air](https://github.com/air-verse/air) _(optional)_ | Hot-reload via `grove serve` (not needed for `grove dev`) |
+| [air](https://github.com/air-verse/air) _(optional)_ | Hot-reload via `grove dev:air` (not needed for `grove dev`) |
 
 ---
 
@@ -115,7 +115,7 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | Command | Description |
 |---|---|
 | `grove dev` | Hot reload — watch, build & restart on every save (no external tools required) |
-| `grove serve` | Start the dev server (uses `air` for hot-reload if available) |
+| `grove dev:air` | Start the development server using Air for hot-reload |
 | `grove build` | Compile the application binary to `./bin/app` |
 | `grove setup <project-name>` | Scaffold a new project from the official template |
 
