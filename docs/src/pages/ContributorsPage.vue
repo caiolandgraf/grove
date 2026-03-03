@@ -1,6 +1,5 @@
 <template>
   <main class="contributors-page">
-
     <!-- ─── Header ───────────────────────────── -->
     <section class="contrib-header">
       <div class="contrib-glow" aria-hidden="true" />
@@ -8,8 +7,8 @@
         <div class="section-label">Contributors</div>
         <h1 class="contrib-title">Built by the community</h1>
         <p class="contrib-sub">
-          Grove is open source and grows with every contribution.
-          From bug fixes to new features, every bit counts.
+          Grove is open source and grows with every contribution. From bug fixes
+          to new features, every bit counts.
         </p>
       </div>
     </section>
@@ -45,7 +44,9 @@
                 class="contrib-avatar"
                 loading="lazy"
               />
-              <span v-if="c.role === 'Author'" class="contrib-badge">Author</span>
+              <span v-if="c.role === 'Author'" class="contrib-badge"
+                >Author</span
+              >
             </div>
 
             <div class="contrib-info">
@@ -64,16 +65,28 @@
               </span>
             </div>
 
-            <svg class="contrib-ext" width="12" height="12" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <line x1="7" y1="17" x2="17" y2="7"/>
-              <polyline points="7 7 17 7 17 17"/>
+            <svg
+              class="contrib-ext"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="7" y1="17" x2="17" y2="7" />
+              <polyline points="7 7 17 7 17 17" />
             </svg>
           </a>
 
           <!-- Placeholder slots -->
-          <div v-for="i in placeholders" :key="`ph-${i}`" class="contrib-card contrib-card--ghost">
+          <div
+            v-for="i in placeholders"
+            :key="`ph-${i}`"
+            class="contrib-card contrib-card--ghost"
+          >
             <div class="ghost-avatar" />
             <div class="ghost-lines">
               <div class="ghost-line ghost-line--name" />
@@ -88,19 +101,26 @@
     <section class="join-section">
       <div class="join-glow" aria-hidden="true" />
       <div class="inner join-inner">
-
         <div class="join-icon" aria-hidden="true">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.4"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <svg
+            width="36"
+            height="36"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         </div>
 
         <h2 class="join-title">Become a contributor</h2>
         <p class="join-sub">
           Whether it's a typo fix, a new command, or a performance improvement —
-          all contributions are welcome. Check the open issues or propose something new.
+          all contributions are welcome. Check the open issues or propose
+          something new.
         </p>
 
         <div class="join-actions">
@@ -110,12 +130,19 @@
             rel="noopener"
             class="btn btn-primary"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             Browse Issues
           </a>
@@ -125,14 +152,21 @@
             rel="noopener"
             class="btn btn-ghost"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="6"  cy="18" r="3"/>
-              <circle cx="6"  cy="6"  r="3"/>
-              <circle cx="18" cy="6"  r="3"/>
-              <path d="M6 9v6"/>
-              <path d="M18 9a9 9 0 0 1-9 9"/>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <circle cx="18" cy="6" r="3" />
+              <path d="M6 9v6" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
             </svg>
             Fork on GitHub
           </a>
@@ -146,10 +180,8 @@
             <p class="how-desc">{{ step.desc }}</p>
           </div>
         </div>
-
       </div>
     </section>
-
   </main>
 </template>
 
@@ -164,28 +196,28 @@ const placeholders = computed(() =>
 )
 
 const stats = [
-  { value: '1',    label: 'Contributor' },
-  { value: '0.1',  label: 'Current version' },
-  { value: 'MIT',  label: 'License' },
-  { value: '∞',    label: 'Contributions welcome' },
+  { value: '1', label: 'Contributor' },
+  { value: '1.3.0', label: 'Current version' },
+  { value: 'MIT', label: 'License' },
+  { value: '∞', label: 'Contributions welcome' }
 ]
 
 const howSteps = [
   {
     num: '01',
     title: 'Fork & clone',
-    desc: 'Fork the repository on GitHub and clone it locally to start working.',
+    desc: 'Fork the repository on GitHub and clone it locally to start working.'
   },
   {
     num: '02',
     title: 'Make your change',
-    desc: 'Fix a bug, add a feature or improve the docs. Build with make grove-build.',
+    desc: 'Fix a bug, add a feature or improve the docs. Build with make grove-build.'
   },
   {
     num: '03',
     title: 'Open a pull request',
-    desc: 'Push your branch and open a PR with a clear description of what changed and why.',
-  },
+    desc: 'Push your branch and open a PR with a clear description of what changed and why.'
+  }
 ]
 </script>
 
@@ -256,7 +288,11 @@ const howSteps = [
 .contrib-glow {
   position: absolute;
   inset: -10% -20%;
-  background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(200, 40, 56, 0.11) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse 70% 60% at 50% 0%,
+    rgba(200, 40, 56, 0.11) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 
@@ -371,7 +407,11 @@ const howSteps = [
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
   text-decoration: none;
   overflow: hidden;
 }
@@ -380,7 +420,11 @@ const howSteps = [
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 50% 0%, var(--red-glow) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 0%,
+    var(--red-glow) 0%,
+    transparent 70%
+  );
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -389,7 +433,9 @@ const howSteps = [
   border-color: var(--red-border);
   background: var(--bg-hover);
   transform: translateY(-3px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(200, 40, 56, 0.1);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(200, 40, 56, 0.1);
 }
 
 .contrib-card:hover::before {
@@ -471,7 +517,10 @@ const howSteps = [
   border: 1px solid var(--border);
   border-radius: 99px;
   padding: 0.2em 0.65em;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .contrib-card:hover .contrib-tag {
@@ -488,7 +537,10 @@ const howSteps = [
   color: var(--text-dim);
   opacity: 0;
   transform: translate(-3px, 3px);
-  transition: opacity 0.2s, transform 0.2s, color 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s,
+    color 0.2s;
 }
 
 .contrib-card:hover .contrib-ext {
@@ -525,8 +577,12 @@ const howSteps = [
   background: rgba(255, 255, 255, 0.04);
 }
 
-.ghost-line--name  { width: 120px; }
-.ghost-line--login { width: 80px; }
+.ghost-line--name {
+  width: 120px;
+}
+.ghost-line--login {
+  width: 80px;
+}
 
 /* ─────────────────────────────────────────────
    Join section
@@ -540,7 +596,11 @@ const howSteps = [
 .join-glow {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 70% 80% at 50% 100%, rgba(200, 40, 56, 0.09) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse 70% 80% at 50% 100%,
+    rgba(200, 40, 56, 0.09) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 

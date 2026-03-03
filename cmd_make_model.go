@@ -23,6 +23,13 @@ var makeModelCmd = &cobra.Command{
 		"make:model",
 	) + ` scaffolds a new GORM model in ` + colorCyan + `internal/models/` + colorReset + `.
 
+The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
+so you can pass the name in any form:
+
+  ` + colorGray + `Post` + colorReset + `        → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `
+  ` + colorGray + `Posts` + colorReset + `       → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `
+  ` + colorGray + `order_items` + colorReset + ` → model ` + colorCyan + `OrderItem` + colorReset + `, table ` + colorCyan + `order_items` + colorReset + `
+
 Combine flags to scaffold additional layers in one shot:
 
   ` + colorGreen + `-m` + colorReset + `  also generate a migration via atlas migrate diff
@@ -32,13 +39,14 @@ Combine flags to scaffold additional layers in one shot:
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:model Post
+  grove make:model Posts        # same as Post (singularized)
   grove make:model Post -m
   grove make:model Post -mc
   grove make:model Post -mcd
   grove make:model Post -r
   grove make:model BlogPost -c
   grove make:model BlogPost -d
-  grove make:model user_profile --resource`,
+  grove make:model order_items --resource`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeModel,
 }
@@ -67,7 +75,7 @@ func init() {
 }
 
 func runMakeModel(_ *cobra.Command, args []string) error {
-	name := toPascalCase(args[0])
+	name := toPascalCase(toSingular(args[0]))
 	snake := toSnakeCase(name)
 	tableName := toPlural(snake)
 

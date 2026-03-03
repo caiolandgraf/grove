@@ -60,8 +60,8 @@ cd my-api
 cp .env.example .env
 # edit .env with your database credentials
 
-# 4. Start the development server
-grove serve`
+# 4. Start the development server with built-in hot reload
+grove dev`
           },
           {
             type: 'paragraph',
@@ -72,7 +72,7 @@ grove serve`
             items: [
               {
                 title: 'Scaffold a resource',
-                text: 'Run <code>grove make:resource Post</code> to generate a model, controller and DTO in one shot.'
+                text: 'Run <code>grove make:resource Post</code> to generate a model, migration, controller and DTO in one shot.'
               },
               {
                 title: 'Generate a migration',
@@ -116,7 +116,7 @@ grove serve`
               [
                 '<a href="https://github.com/air-verse/air" target="_blank">air</a> (optional)',
                 'latest',
-                'Hot-reload via <code>grove serve</code>'
+                'Hot-reload via <code>grove serve</code> — not needed for <code>grove dev</code>'
               ],
               [
                 'PostgreSQL (or any GORM driver)',
@@ -128,7 +128,7 @@ grove serve`
           {
             type: 'note',
             kind: 'tip',
-            text: 'Install <code>air</code> with <code>go install github.com/air-verse/air@latest</code> to enable hot-reload. Grove will detect it automatically.'
+            text: '<code>grove dev</code> provides built-in hot reload without any external tools. <code>air</code> is only needed if you use <code>grove serve</code> and want hot-reload there.'
           }
         ]
       }
@@ -202,7 +202,7 @@ grove setup my-api --module github.com/acme/my-api`
 root        = "."
 bin         = ".grove/tmp/app"
 build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
-watch_dirs  = [".", "internal", "controllers", "models"]
+watch_dirs  = ["."]
 exclude     = [".grove", "vendor", "node_modules", "tests"]
 extensions  = [".go"]
 debounce_ms = 50`
@@ -223,7 +223,7 @@ debounce_ms = 50`
               ],
               [
                 '<code>build_cmd</code>',
-                '<code>go build -o .grove/tmp/app .</code>',
+                '<code>go build -o .grove/tmp/app ./cmd/api/</code>',
                 'Command used to compile the project'
               ],
               [
@@ -233,8 +233,8 @@ debounce_ms = 50`
               ],
               [
                 '<code>exclude</code>',
-                '<code>[".grove", "vendor", "node_modules"]</code>',
-                'Directory names to ignore'
+                '<code>[".grove", "vendor", "node_modules", "tests"]</code>',
+                'Directory names to ignore (spec files ending in <code>_spec.go</code> are always excluded)'
               ],
               [
                 '<code>extensions</code>',
@@ -251,7 +251,7 @@ debounce_ms = 50`
           {
             type: 'note',
             kind: 'tip',
-            text: 'Newly created subdirectories are picked up automatically at runtime — no restart of <code>grove dev</code> required.'
+            text: 'Newly created subdirectories are picked up automatically at runtime — no restart of <code>grove dev</code> required. Spec files (<code>*_spec.go</code>) and the <code>tests</code> directory are always excluded so a test save never triggers an application rebuild.'
           }
         ]
       },
@@ -619,7 +619,11 @@ grove make:migration create_orders_table --env dev`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a model, controller and DTO in one shot. Equivalent to running <code>make:model</code>, <code>make:controller</code> and <code>make:dto</code> together. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
+            text: 'Scaffolds a model, migration, controller and DTO in one shot. Equivalent to running <code>grove make:model &lt;Name&gt; -r</code>. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
+          },
+          {
+            type: 'paragraph',
+            text: 'The entity name is <strong>automatically singularized</strong> before generating files, so you can pass the name in any form and Grove will always produce consistent output.'
           },
           {
             type: 'code',
@@ -631,14 +635,49 @@ grove make:migration create_orders_table --env dev`
             type: 'code',
             lang: 'bash',
             label: 'examples',
-            code: `grove make:resource Post
-grove make:resource BlogPost
-grove make:resource order_item`
+            code: `grove make:resource Post        # → Post model, posts table
+grove make:resource Posts       # → Post model, posts table (singularized)
+grove make:resource BlogPost    # → BlogPost model, blog_posts table
+grove make:resource order_items # → OrderItem model, order_items table`
+          },
+          {
+            type: 'table',
+            head: ['Input', 'Resolved name', 'File', 'Table', 'Migration'],
+            rows: [
+              [
+                '<code>Post</code>',
+                '<code>Post</code>',
+                '<code>post.go</code>',
+                '<code>posts</code>',
+                '<code>create_posts_table</code>'
+              ],
+              [
+                '<code>Posts</code>',
+                '<code>Post</code>',
+                '<code>post.go</code>',
+                '<code>posts</code>',
+                '<code>create_posts_table</code>'
+              ],
+              [
+                '<code>BlogPost</code>',
+                '<code>BlogPost</code>',
+                '<code>blog_post.go</code>',
+                '<code>blog_posts</code>',
+                '<code>create_blog_posts_table</code>'
+              ],
+              [
+                '<code>order_items</code>',
+                '<code>OrderItem</code>',
+                '<code>order_item.go</code>',
+                '<code>order_items</code>',
+                '<code>create_order_items_table</code>'
+              ]
+            ]
           },
           {
             type: 'note',
             kind: 'tip',
-            text: 'This is the fastest way to bootstrap a new feature. After running it, add your fields to the model and DTO, run <code>grove make:migration</code>, then register your routes.'
+            text: 'This is the fastest way to bootstrap a new feature. After running it, add your fields to the model and DTO, apply the migration with <code>grove migrate</code>, then register your routes.'
           }
         ]
       },
@@ -824,7 +863,7 @@ func init() {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Compiles and runs every <code>*_spec.go</code> file in <code>internal/tests/</code>. Pass <code>-c</code> to display a per-suite coverage report after the run. Pass <code>-w</code> to enter watch mode so specs re-run automatically on file changes — no external tools required. Combine both as <code>-wc</code>.'
+            text: 'Compiles and runs every <code>*_spec.go</code> file in <code>internal/tests/</code>. Pass <code>-c</code> to display a per-suite coverage report after the run. Pass <code>-w</code> to enter watch mode so specs re-run automatically on file changes — no Air or external tools required, watch is built directly into gest. Combine both as <code>-wc</code>.'
           },
           {
             type: 'code',
@@ -842,7 +881,7 @@ func init() {
               ],
               [
                 '<code>-w</code>, <code>--watch</code>',
-                'Watch mode: re-run specs on file changes'
+                'Watch mode: re-run specs on file changes (no external tools required)'
               ],
               [
                 '<code>-wc</code>',
@@ -862,7 +901,7 @@ grove test -wc     # watch mode + coverage report`
           {
             type: 'note',
             kind: 'tip',
-            text: 'Coverage bar colours: <strong>green</strong> ≥ 80% · <strong>yellow</strong> ≥ 50% · <strong>red</strong> &lt; 50%.'
+            text: 'Coverage bar colours: <strong>green</strong> ≥ 80% · <strong>yellow</strong> ≥ 50% · <strong>red</strong> &lt; 50%. Pressing <kbd>Ctrl+C</kbd> in watch mode stops cleanly without printing a failure message.'
           }
         ]
       },

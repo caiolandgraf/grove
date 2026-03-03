@@ -260,6 +260,97 @@ func toLowerFirst(s string) string {
 // Pluralization
 // ──────────────────────────────────────────────
 
+// toSingular returns the singular form of an English word.
+// It is the inverse of toPlural and handles the same irregular and suffix
+// rules so that inputs like "books" → "book", "categories" → "category".
+// If the word is already singular it is returned unchanged.
+func toSingular(s string) string {
+	if s == "" {
+		return s
+	}
+
+	lower := strings.ToLower(s)
+
+	// Irregular plurals — map plural → singular.
+	irregulars := map[string]string{
+		"people":   "person",
+		"men":      "man",
+		"women":    "woman",
+		"children": "child",
+		"mice":     "mouse",
+		"geese":    "goose",
+		"teeth":    "tooth",
+		"feet":     "foot",
+		"oxen":     "ox",
+		"leaves":   "leaf",
+		"lives":    "life",
+		"knives":   "knife",
+		"wives":    "wife",
+		"wolves":   "wolf",
+		"halves":   "half",
+		"selves":   "self",
+		"elves":    "elf",
+		"loaves":   "loaf",
+		"potatoes": "potato",
+		"tomatoes": "tomato",
+		"cacti":    "cactus",
+		"foci":     "focus",
+		"radii":    "radius",
+		"data":     "datum",
+		"media":    "medium",
+		"indices":  "index",
+		"matrices": "matrix",
+		"vertices": "vertex",
+		"axes":     "axis",
+		"crises":   "crisis",
+	}
+	if singular, ok := irregulars[lower]; ok {
+		// Preserve original casing of the first letter.
+		if len(s) > 0 && unicode.IsUpper(rune(s[0])) {
+			return strings.ToUpper(singular[:1]) + singular[1:]
+		}
+		return singular
+	}
+
+	// Already singular — doesn't end in s at all.
+	if !strings.HasSuffix(lower, "s") {
+		return s
+	}
+
+	// -ies → -y  (categories → category)
+	if strings.HasSuffix(lower, "ies") && len(lower) > 3 {
+		return s[:len(s)-3] + "y"
+	}
+
+	// -ves → -f or -fe
+	if strings.HasSuffix(lower, "ves") {
+		// Most common: -ves → -f (wolves → wolf)
+		return s[:len(s)-3] + "f"
+	}
+
+	// -ses, -xes, -zes, -ches, -shes → strip -es
+	if strings.HasSuffix(lower, "ses") ||
+		strings.HasSuffix(lower, "xes") ||
+		strings.HasSuffix(lower, "zes") ||
+		strings.HasSuffix(lower, "ches") ||
+		strings.HasSuffix(lower, "shes") {
+		return s[:len(s)-2]
+	}
+
+	// -oes → -o  (potatoes handled above via irregulars; catches others)
+	if strings.HasSuffix(lower, "oes") {
+		return s[:len(s)-2]
+	}
+
+	// -ss words are already singular (class, grass) — leave alone.
+	if strings.HasSuffix(lower, "ss") {
+		return s
+	}
+
+	// Default: strip trailing -s.
+	return s[:len(s)-1]
+}
+
 // toPlural returns a simple English plural of the given word.
 // Handles the most common cases; for irregular forms the user can
 // override inside the generated file.

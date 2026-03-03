@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.2.2"
+const version = "1.3.0"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -36,12 +36,12 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:dto" + colorReset + "         <Name>   Scaffold a DTO request/response file\n" +
 		"    grove " + colorGreen + "make:middleware" + colorReset + "  <Name>   Scaffold an HTTP middleware\n" +
 		"    grove " + colorGreen + "make:migration" + colorReset + "   <name>   Generate a migration via atlas migrate diff\n" +
-		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + controller + DTO at once\n"
+		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + migration + controller + DTO at once\n"
 
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
-		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save\n" +
-		"    grove " + colorBlue + "serve" + colorReset + "             Start the development server\n" +
+		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save (built-in, no Air)\n" +
+		"    grove " + colorBlue + "serve" + colorReset + "             Start the development server (uses Air if available)\n" +
 		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n"
 
 	database := "\n" +
@@ -57,7 +57,7 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:test" + colorReset + "        <Name>   Scaffold a new gest spec file\n" +
 		"    grove " + colorBlue + "test" + colorReset + "              Run all gest specs in internal/tests\n" +
 		"    grove " + colorBlue + "test -c" + colorReset + "           Run specs + display coverage report\n" +
-		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run specs on every save\n" +
+		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run specs on every save (no external tools)\n" +
 		"    grove " + colorBlue + "test -wc" + colorReset + "          Watch mode + coverage report\n"
 
 	setup := "\n" +

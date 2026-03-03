@@ -14,6 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Release](https://img.shields.io/badge/release-v1.3.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v1.3.0)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
@@ -37,7 +38,7 @@ Grove is a CLI that scaffolds and manages Go applications following a clean, lay
 | [fuego](https://github.com/go-fuego/fuego) | HTTP router + automatic OpenAPI 3.1 |
 | [Atlas](https://atlasgo.io) | Schema migration engine |
 | [gest](https://github.com/caiolandgraf/gest) | Jest-inspired testing framework for Go |
-| [air](https://github.com/air-verse/air) _(optional)_ | Hot-reload via `grove serve` |
+| [air](https://github.com/air-verse/air) _(optional)_ | Hot-reload via `grove serve` (not needed for `grove dev`) |
 
 ---
 
@@ -67,8 +68,8 @@ grove setup my-api
 # 2. Enter the project and configure your environment
 cd my-api && cp .env.example .env
 
-# 3. Start the development server
-grove serve
+# 3. Start the development server with built-in hot reload
+grove dev
 ```
 
 Your API is running at `http://localhost:8080`.  
@@ -93,7 +94,9 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
 | `grove make:migration <name>` | Generate a SQL migration via Atlas diff |
-| `grove make:resource <Name>` | Scaffold model + controller + DTO in one shot |
+| `grove make:resource <Name>` | Scaffold model + migration + controller + DTO in one shot |
+
+> **Name singularization:** all generator commands accept plural or mixed-case names and convert them automatically. `Books`, `books`, and `Book` all produce the same `Book` model, `books` table, and `create_books_table` migration.
 
 ### Testing
 
@@ -102,7 +105,7 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:test <Name>` | Scaffold a new [gest](https://github.com/caiolandgraf/gest) spec file in `internal/tests/` |
 | `grove test` | Run all spec files via gest |
 | `grove test -c` | Run specs and display a per-suite coverage report |
-| `grove test -w` | Watch mode — re-run specs on every save |
+| `grove test -w` | Watch mode — re-run specs on every save (no external tools required) |
 | `grove test -wc` | Watch mode + coverage report |
 
 > `grove make:test` automatically creates `internal/tests/main.go` (the gest entrypoint) if it does not exist yet.
@@ -162,6 +165,7 @@ my-api/
 ├── migrations/                  # Atlas SQL migrations
 ├── .env.example                 # Committed env template
 ├── atlas.hcl                    # Atlas configuration
+├── grove.toml                   # Grove configuration (optional)
 └── go.mod
 ```
 
@@ -172,22 +176,19 @@ The `internal/` boundary is intentional — it prevents external packages from i
 ## Typical Workflow
 
 ```bash
-# 1. Scaffold a full resource (model + controller + DTO)
+# 1. Scaffold a full resource (model + migration + controller + DTO)
 grove make:resource Post
 
-# 2. Add fields to the model and DTO, then generate a migration
-grove make:migration create_posts_table
-
-# 3. Review the generated SQL in migrations/ then apply it
+# 2. Add fields to the model and DTO, then apply the migration
 grove migrate
 
-# 4. Register routes in internal/routes/routes.go
+# 3. Register routes in internal/routes/routes.go
 #    fuego.Post(s, "/posts", controllers.CreatePost)
 
-# 5. Write tests for your new resource
+# 4. Write tests for your new resource
 grove make:test Post
 
-# 6. Run the test suite
+# 5. Run the test suite
 grove test -c
 ```
 
@@ -201,7 +202,7 @@ Grove ships a built-in hot reload watcher — no Air, no external tools required
 grove dev
 ```
 
-On every `.go` save Grove recompiles and restarts your binary automatically. A debounce window collapses burst saves into a single rebuild, and newly created subdirectories are picked up at runtime without restarting.
+On every `.go` save Grove recompiles and restarts your binary automatically. A debounce window collapses burst saves into a single rebuild, and newly created subdirectories are picked up at runtime without restarting the watcher.
 
 Configure behaviour via the optional `[dev]` section in `grove.toml` at the project root:
 
@@ -210,13 +211,15 @@ Configure behaviour via the optional `[dev]` section in `grove.toml` at the proj
 root        = "."
 bin         = ".grove/tmp/app"
 build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
-watch_dirs  = [".", "internal", "controllers", "models"]
+watch_dirs  = ["."]
 exclude     = [".grove", "vendor", "node_modules", "tests"]
 extensions  = [".go"]
 debounce_ms = 50
 ```
 
 All fields are optional. When `grove.toml` is absent or the `[dev]` section is omitted, sensible defaults are applied and `grove dev` works out of the box.
+
+> **Tip:** spec files (`*_spec.go`) and the `tests` directory are always excluded from the watcher so a test save never triggers an application rebuild.
 
 ---
 
@@ -233,6 +236,9 @@ grove test
 
 # Run with per-suite coverage report
 grove test -c
+
+# Watch mode — re-run specs on every save (no Air or external tools)
+grove test -w
 ```
 
 Each spec file lives in `internal/tests/` and self-registers via `init()`:
@@ -256,6 +262,20 @@ func init() {
 ```
 
 > **Note:** gest uses `_spec.go` instead of `_test.go` because the Go toolchain reserves `_test.go` for `go test`. gest runs via `go run`, so any other suffix works.
+
+---
+
+## Generator Name Singularization
+
+All generator commands automatically singularize the entity name before generating files. This means you can type the name in any form and Grove will always produce consistent output:
+
+| Input | Resolved name | File | Table |
+|---|---|---|---|
+| `Book` | `Book` | `book.go` | `books` |
+| `Books` | `Book` | `book.go` | `books` |
+| `books` | `Book` | `book.go` | `books` |
+| `BlogPost` | `BlogPost` | `blog_post.go` | `blog_posts` |
+| `order_items` | `OrderItem` | `order_item.go` | `order_items` |
 
 ---
 

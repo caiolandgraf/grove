@@ -283,8 +283,8 @@ const features = [
   },
   {
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>`,
-    title: 'Hot-reload out of the box',
-    desc: 'If air is installed, grove serve uses it automatically. Instant feedback loop with no configuration required.'
+    title: 'Built-in hot reload',
+    desc: 'grove dev watches your files, rebuilds and restarts the binary on every save — no Air, no external tools, no configuration required.'
   },
   {
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>`,
@@ -340,10 +340,10 @@ const terminalLines = [
     text: '<span style="color:#4ade80">  ✓</span>  Installing dependencies   <span style="color:#3a3c55">1.4s</span>'
   },
   { type: 'spacer', text: '' },
-  { type: 'cmd', text: 'cd my-api && grove serve' },
+  { type: 'cmd', text: 'cd my-api && grove dev' },
   {
     type: 'out',
-    text: '<span style="color:#c82838">  ▸ AIR </span>  Starting server with <b>air</b>'
+    text: '<span style="color:#4ade80">  ▸ GROVE DEV </span>  watching for changes — Ctrl+C to stop'
   },
   {
     type: 'out',
@@ -361,11 +361,15 @@ const terminalLines = [
   },
   {
     type: 'out',
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Migration  <b>create_posts_table</b>  <span style="color:#3a3c55">→ migrations/</span>'
+  },
+  {
+    type: 'out',
     text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Controller <b>Post</b>  <span style="color:#3a3c55">→ internal/controllers/post-controller.go</span>'
   },
   {
     type: 'out',
-    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Request    <b>Post</b>  <span style="color:#3a3c55">→ internal/dto/post-dto.go</span>'
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  DTO        <b>Post</b>  <span style="color:#3a3c55">→ internal/dto/post-dto.go</span>'
   }
 ]
 </script>

@@ -13,8 +13,12 @@ var makeControllerCmd = &cobra.Command{
 		"make:controller",
 	) + ` scaffolds a new fuego controller in ` + colorCyan + `internal/controllers/` + colorReset + `.
 
+The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
+so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `PostController` + colorReset + `.
+
 ` + colorGray + `Examples:` + colorReset + `
   grove make:controller Post
+  grove make:controller Posts        # same as Post (singularized)
   grove make:controller BlogPost
   grove make:controller user_profile`,
 	Args: cobra.ExactArgs(1),
@@ -22,7 +26,7 @@ var makeControllerCmd = &cobra.Command{
 }
 
 func runMakeController(_ *cobra.Command, args []string) error {
-	name := toPascalCase(args[0])
+	name := toPascalCase(toSingular(args[0]))
 	snake := toSnakeCase(name)
 
 	fmt.Println()

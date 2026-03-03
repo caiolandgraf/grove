@@ -13,16 +13,20 @@ var makeDtoCmd = &cobra.Command{
 		"make:dto",
 	) + ` scaffolds a new DTO request/response file in ` + colorCyan + `internal/dto/` + colorReset + `.
 
+The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
+so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `post-dto.go` + colorReset + `.
+
 ` + colorGray + `Examples:` + colorReset + `
   grove make:dto Post
+  grove make:dto Posts           # same as Post (singularized)
   grove make:dto BlogPost
-  grove make:dto user_profile`,
+  grove make:dto order_items`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeDto,
 }
 
 func runMakeDto(_ *cobra.Command, args []string) error {
-	name := toPascalCase(args[0])
+	name := toPascalCase(toSingular(args[0]))
 
 	fmt.Println()
 	fmt.Printf(
