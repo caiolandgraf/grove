@@ -17,6 +17,21 @@ changes and automatically recompiles + restarts the binary on every save.
 
 No external tools required — hot reload is built right into Grove.
 
+` + colorBold + `Output formatting` + colorReset + `
+  Structured JSON logs (slog, zap, zerolog) are automatically parsed and
+  rendered as human-readable coloured lines:
+
+  ` + colorGray + `08:38:28` + colorReset + `  ` + colorGreen + `INF` + colorReset + `  Booting application...
+  ` + colorGray + `08:38:28` + colorReset + `  ` + colorRed + `ERR` + colorReset + `  Failed to boot application  ` + colorGray + `error=...` + colorReset + `
+
+  Panics are captured and rendered as a styled block with the stack trace.
+
+` + colorBold + `Startup hints` + colorReset + `
+  Grove detects common startup errors and prints an actionable hint:
+
+  ` + colorGray + `· .env not found        →` + colorReset + ` suggests ` + colorGreen + `cp .env.example .env` + colorReset + `
+  ` + colorGray + `· database unreachable  →` + colorReset + ` suggests ` + colorGreen + `docker compose up -d` + colorReset + `
+
 Configure behaviour via the ` + colorCyan + `[dev]` + colorReset + ` section in ` + colorCyan + `grove.toml` + colorReset + `:
 
   ` + colorGray + `[dev]` + colorReset + `

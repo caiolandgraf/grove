@@ -195,6 +195,56 @@ grove setup my-api --module github.com/acme/my-api`
           },
           {
             type: 'paragraph',
+            text: "<code>grove dev</code> also processes your application's stdout/stderr and formats it intelligently — structured JSON logs are rendered as human-readable coloured lines, and panics are captured into a styled block."
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'JSON log output (slog / zap / zerolog)',
+            code: `  08:38:28  INF  Booting application...
+  08:38:28  INF  OpenTelemetry initialized  service=grove-app  endpoint=localhost:4318
+  08:38:28  ERR  Failed to boot application  error=failed to connect to database: ...`
+          },
+          {
+            type: 'table',
+            head: ['Level', 'Badge', 'Colour'],
+            rows: [
+              ['<code>DEBUG</code>', '<code>DBG</code>', 'Gray'],
+              ['<code>INFO</code>', '<code>INF</code>', 'Green'],
+              ['<code>WARN</code>', '<code>WRN</code>', 'Yellow'],
+              ['<code>ERROR</code>', '<code>ERR</code>', 'Red']
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: "Compatible with any structured logger that emits <code>level</code>, <code>msg</code> and <code>time</code> fields — including Go's standard <code>slog</code>, <code>zap</code> and <code>zerolog</code>. The timestamp is trimmed to <code>HH:MM:SS</code> and extra fields are shown inline, dimmed."
+          },
+          {
+            type: 'paragraph',
+            text: '<strong>Startup hints</strong> — Grove detects common startup errors and prints an actionable <code>HINT</code> block immediately below the error line:'
+          },
+          {
+            type: 'table',
+            head: ['Error detected', 'Hint shown'],
+            rows: [
+              [
+                '<code>.env not found</code>',
+                '<code>cp .env.example .env</code>'
+              ],
+              [
+                '<code>connection refused</code> · <code>dial error</code> · <code>failed to connect</code>',
+                '<code>docker compose up -d</code> and check <code>.env</code>'
+              ]
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'Each hint is shown once per rebuild. If the same error persists after the next file save, the hint appears again — no spam within the same run.'
+          },
+          {
+            type: 'paragraph',
             text: 'Behaviour is fully configurable via the optional <code>[dev]</code> section in <code>grove.toml</code>. All fields are optional — when the file is absent or the section is omitted, sensible defaults are used and <code>grove dev</code> works out of the box.'
           },
           {

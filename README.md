@@ -14,7 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Release](https://img.shields.io/badge/release-v1.4.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/badge/release-v1.4.1-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v1.4.1)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
@@ -232,6 +232,35 @@ grove dev
 
 On every `.go` save Grove recompiles and restarts your binary automatically. A debounce window collapses burst saves into a single rebuild, and newly created subdirectories are picked up at runtime without restarting the watcher.
 
+> **Tip:** spec files (`*_spec.go`) and the `tests` directory are always excluded from the watcher so a test save never triggers an application rebuild.
+
+### Output formatting
+
+`grove dev` processes your application's stdout/stderr and formats it intelligently:
+
+**Structured JSON logs** (slog, zap, zerolog) are parsed and rendered as human-readable coloured lines:
+
+```
+  08:38:28  INF  Booting application...
+  08:38:28  INF  OpenTelemetry initialized  service=grove-app  endpoint=localhost:4318
+  08:38:28  ERR  Failed to boot application  error=failed to connect to database: ...
+```
+
+**Panics** are captured and rendered as a styled block with the stack trace clearly formatted instead of raw text.
+
+### Startup hints
+
+Grove detects common startup errors and prints an actionable `HINT` immediately below the error:
+
+| Error detected | Hint shown |
+|---|---|
+| `.env not found` | `cp .env.example .env` |
+| `connection refused` / `dial error` / `failed to connect` | `docker compose up -d` |
+
+Each hint is shown once per rebuild — if the error persists after the next file save, the hint appears again.
+
+### Configuration
+
 Configure behaviour via the optional `[dev]` section in `grove.toml` at the project root:
 
 ```toml
@@ -246,8 +275,6 @@ debounce_ms = 50
 ```
 
 All fields are optional. When `grove.toml` is absent or the `[dev]` section is omitted, sensible defaults are applied and `grove dev` works out of the box.
-
-> **Tip:** spec files (`*_spec.go`) and the `tests` directory are always excluded from the watcher so a test save never triggers an application rebuild.
 
 ---
 

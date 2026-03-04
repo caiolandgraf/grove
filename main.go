@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.4.0"
+const version = "1.4.1"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -44,7 +44,7 @@ func buildBanner() string {
 
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
-		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save (built-in, no Air)\n" +
+		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart; formats JSON logs & hints on error\n" +
 		"    grove " + colorBlue + "dev:air" + colorReset + "           Start the development server using Air for hot-reload\n" +
 		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n"
 
