@@ -151,14 +151,6 @@ func runTest(_ *cobra.Command, _ []string) error {
 func runTestOnce() error {
 	cmd, args := buildTestCommand()
 
-	fmt.Println()
-	fmt.Printf(
-		"  %sRunning tests%s %s\n",
-		colorGray, colorReset,
-		gray("("+cmd+" "+joinArgs(args)+")"),
-	)
-	fmt.Println()
-
 	c := exec.Command(cmd, args...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
@@ -216,14 +208,6 @@ func runGestWatch(gestPath string) error {
 		args = append(args, "-c")
 	}
 	args = append(args, "./internal/tests/...")
-
-	fmt.Println()
-	fmt.Printf(
-		"  %s WATCH %s  Watching for changes — press %s to stop\n",
-		colorBgGreen, colorReset,
-		bold("Ctrl+C"),
-	)
-	fmt.Println()
 
 	c := exec.Command(gestPath, args...)
 	c.Stdout = os.Stdout
