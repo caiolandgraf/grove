@@ -1,14 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"sync"
 	"syscall"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 )
+
+// testBin is the path to the compiled test binary.
+const testBin = ".grove/tmp/tests"
 
 // ──────────────────────────────────────────────
 // make:test
@@ -93,6 +101,10 @@ var testCmd = &cobra.Command{
 	) + ` compiles and runs every ` + colorCyan + `*_spec.go` + colorReset + ` file found in
 ` + colorCyan + `internal/tests/` + colorReset + ` using the ` + colorCyan + `gest` + colorReset + ` testing framework.
 
+The test suite is compiled once to ` + colorCyan + `.grove/tmp/tests` + colorReset + ` and executed
+directly — subsequent runs (and watch-mode rebuilds) only recompile what
+changed, making them significantly faster than ` + colorGray + `go run` + colorReset + `.
+
 Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report.
 Pass ` + colorGreen + `-w` + colorReset + ` to enter watch mode — specs re-run automatically on every
 file change. No external tools required.
@@ -115,7 +127,7 @@ func init() {
 	testCmd.Flags().BoolVarP(
 		&testWatch,
 		"watch", "w", false,
-		"Re-run specs automatically on file changes",
+		"Re-run specs automatically on file changes (built-in, no external tools)",
 	)
 }
 
@@ -131,6 +143,11 @@ func runTest(_ *cobra.Command, _ []string) error {
 		)
 	}
 
+	// Ensure the tmp directory exists for the compiled binary.
+	if err := os.MkdirAll(filepath.Dir(testBin), 0o755); err != nil {
+		return fmt.Errorf("cannot create tmp dir: %w", err)
+	}
+
 	if testWatch {
 		return runTestWatch(testsDir)
 	}
@@ -139,29 +156,61 @@ func runTest(_ *cobra.Command, _ []string) error {
 }
 
 // ──────────────────────────────────────────────
+// Build helper
+// ──────────────────────────────────────────────
+
+// buildTests compiles internal/tests into the testBin binary.
+// It returns the stderr output on failure so the caller can display it.
+func buildTests(testsDir string) error {
+	var stderr bytes.Buffer
+	c := exec.Command("go", "build", "-o", testBin, testsDir)
+	c.Stderr = &stderr
+	c.Stdout = nil
+
+	if err := c.Run(); err != nil {
+		// Print compiler errors through the build writer for coloured output.
+		bw := newBuildOutputWriter(os.Stderr)
+		_, _ = bw.Write(stderr.Bytes())
+		return fmt.Errorf("build failed")
+	}
+	return nil
+}
+
+// ──────────────────────────────────────────────
 // One-shot run
 // ──────────────────────────────────────────────
 
 func runTestOnce(testsDir string) error {
-	goArgs := []string{"run", testsDir}
-	if testCoverage {
-		goArgs = append(goArgs, "-c")
-	}
-
-	label := "go run " + testsDir
-	if testCoverage {
-		label += " -c"
-	}
-
 	fmt.Println()
 	fmt.Printf(
-		"  %sRunning specs%s %s\n",
+		"  %sBuilding specs%s %s\n",
 		colorGray, colorReset,
-		gray("("+label+")"),
+		gray("(go build "+testsDir+" → "+testBin+")"),
 	)
 	fmt.Println()
 
-	c := exec.Command("go", goArgs...)
+	start := time.Now()
+	if err := buildTests(testsDir); err != nil {
+		fmt.Println()
+		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
+		fmt.Println()
+		return err
+	}
+	buildElapsed := time.Since(start)
+
+	fmt.Printf(
+		"  %sRunning specs%s %s\n",
+		colorGray, colorReset,
+		gray(fmt.Sprintf("(built in %s)", fmtTestElapsed(buildElapsed))),
+	)
+	fmt.Println()
+
+	var runArgs []string
+	if testCoverage {
+		runArgs = append(runArgs, "-c")
+	}
+
+	c := exec.Command(testBin, runArgs...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
@@ -189,8 +238,8 @@ func runTestOnce(testsDir string) error {
 			return nil
 		}
 		// gest exits with code 1 when tests fail — that's expected behaviour,
-		// so we suppress the generic "exited with error" wrapper and let gest's
-		// own output speak for itself.
+		// so we suppress the generic error wrapper and let gest's own output
+		// speak for itself.
 		return fmt.Errorf("one or more specs failed")
 	}
 
@@ -198,22 +247,36 @@ func runTestOnce(testsDir string) error {
 }
 
 // ──────────────────────────────────────────────
-// Watch mode
+// Watch mode (built-in, no external tools)
 // ──────────────────────────────────────────────
 
+// testWatcher holds the state for the built-in test watch loop.
+type testWatcher struct {
+	testsDir string
+
+	mu       sync.Mutex
+	debounce *time.Timer
+	proc     *exec.Cmd     // currently running test binary
+	procDone chan struct{} // closed when proc exits
+	buildCh  chan struct{} // signals the build worker
+}
+
 func runTestWatch(testsDir string) error {
-	// gest's built-in -w flag handles the watch loop natively.
-	// We run `go run . -w` with Dir set to testsDir so that gest's
-	// internal `go build .` and directory watcher operate from the
-	// correct location instead of the project root.
-	goArgs := []string{"run", ".", "-w"}
-	if testCoverage {
-		goArgs = append(goArgs, "-c")
+	fsw, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("cannot create watcher: %w", err)
+	}
+	defer fsw.Close() //nolint:errcheck
+
+	// Watch the whole project for .go file changes, not just internal/tests,
+	// so that changes to models, services etc. also trigger a re-run.
+	if err := addTestDirRecursive(fsw, "."); err != nil {
+		return err
 	}
 
-	label := "go run . -w"
-	if testCoverage {
-		label += " -c"
+	tw := &testWatcher{
+		testsDir: testsDir,
+		buildCh:  make(chan struct{}, 1),
 	}
 
 	fmt.Println()
@@ -223,64 +286,207 @@ func runTestWatch(testsDir string) error {
 		bold("Ctrl+C"),
 	)
 	if testCoverage {
-		fmt.Printf(
-			"  %sCoverage report enabled%s\n",
-			colorGray, colorReset,
-		)
+		fmt.Printf("  %sCoverage report enabled%s\n", colorGray, colorReset)
 	}
-	fmt.Printf(
-		"  %s%s%s\n",
-		colorGray,
-		gray("("+label+")"),
-		colorReset,
-	)
 	fmt.Println()
 
-	// Filter out gest's own internal log lines so grove controls the UX.
-	fw := newFilteredWriter(os.Stdout,
-		"gest: running tests",
-		"gest: watching for changes",
-	)
+	// Trigger an initial build+run immediately.
+	tw.buildCh <- struct{}{}
 
-	c := exec.Command("go", goArgs...)
-	c.Dir = testsDir
-	c.Stdout = fw
-	c.Stderr = fw
-	c.Stdin = os.Stdin
+	// Build worker — serialises all rebuild+run cycles.
+	go func() {
+		for range tw.buildCh {
+			tw.buildAndRun()
+		}
+	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	if err := c.Start(); err != nil {
-		return fmt.Errorf("failed to start tests in watch mode: %w", err)
+	for {
+		select {
+		case event, ok := <-fsw.Events:
+			if !ok {
+				return nil
+			}
+			// Auto-watch newly created subdirectories.
+			if event.Has(fsnotify.Create) {
+				if info, err := os.Stat(
+					event.Name,
+				); err == nil &&
+					info.IsDir() {
+					_ = addTestDirRecursive(fsw, event.Name)
+				}
+			}
+			if shouldHandleTestEvent(event) {
+				tw.scheduleRebuild()
+			}
+
+		case err, ok := <-fsw.Errors:
+			if !ok {
+				return nil
+			}
+			fmt.Printf(
+				"  %swatcher error: %s%s\n",
+				colorYellow,
+				err.Error(),
+				colorReset,
+			)
+
+		case <-sigCh:
+			tw.stopProc()
+			fmt.Println()
+			fmt.Println(gray("  Watch stopped."))
+			fmt.Println()
+			return nil
+		}
+	}
+}
+
+// scheduleRebuild debounces rapid saves into a single rebuild.
+func (tw *testWatcher) scheduleRebuild() {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+
+	if tw.debounce != nil {
+		tw.debounce.Stop()
+	}
+	tw.debounce = time.AfterFunc(100*time.Millisecond, func() {
+		select {
+		case tw.buildCh <- struct{}{}:
+		default:
+		}
+	})
+}
+
+// buildAndRun stops any running test binary, rebuilds, and runs.
+func (tw *testWatcher) buildAndRun() {
+	tw.stopProc()
+
+	fmt.Println()
+	fmt.Printf(
+		"  %s%s%s  %s\n",
+		colorBgBlue, " BUILDING ", colorReset,
+		gray("(go build "+tw.testsDir+" → "+testBin+")"),
+	)
+
+	start := time.Now()
+	if err := buildTests(tw.testsDir); err != nil {
+		fmt.Println()
+		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
+		fmt.Println()
+		return
+	}
+	buildElapsed := time.Since(start)
+
+	fmt.Printf(
+		"  %s%s%s  %s\n\n",
+		colorBgGreen, " RUNNING ", colorReset,
+		gray(fmt.Sprintf("built in %s", fmtTestElapsed(buildElapsed))),
+	)
+
+	var runArgs []string
+	if testCoverage {
+		runArgs = append(runArgs, "-c")
 	}
 
-	// interrupted is buffered so the goroutine never blocks even if c.Wait()
-	// returns before the select is reached.
-	interrupted := make(chan struct{}, 1)
+	proc := exec.Command(testBin, runArgs...)
+	proc.Stdout = os.Stdout
+	proc.Stderr = os.Stderr
+	proc.Stdin = os.Stdin
+
+	if err := proc.Start(); err != nil {
+		fmt.Printf(
+			"  %sfailed to start tests: %s%s\n",
+			colorRed,
+			err.Error(),
+			colorReset,
+		)
+		return
+	}
+
+	done := make(chan struct{})
+
+	tw.mu.Lock()
+	tw.proc = proc
+	tw.procDone = done
+	tw.mu.Unlock()
 
 	go func() {
-		sig := <-sigCh
-		interrupted <- struct{}{}
-		if c.Process != nil {
-			_ = c.Process.Signal(sig)
-		}
+		_ = proc.Wait()
+		close(done)
 	}()
+}
 
-	if err := c.Wait(); err != nil {
-		select {
-		case <-interrupted:
-			// Ctrl+C — intentional shutdown, not a test failure.
-		default:
-			if !isSignalError(err) {
-				return fmt.Errorf("one or more specs failed")
-			}
-		}
+// stopProc sends SIGINT to the running test binary and waits for it to exit.
+func (tw *testWatcher) stopProc() {
+	tw.mu.Lock()
+	proc := tw.proc
+	done := tw.procDone
+	tw.proc = nil
+	tw.procDone = nil
+	tw.mu.Unlock()
+
+	if proc == nil || proc.Process == nil {
+		return
 	}
 
-	fmt.Println()
-	fmt.Println(gray("  Watch stopped."))
-	fmt.Println()
-	return nil
+	_ = proc.Process.Signal(os.Interrupt)
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		_ = proc.Process.Kill()
+		if done != nil {
+			<-done
+		}
+	}
+}
+
+// ──────────────────────────────────────────────
+// fsnotify helpers
+// ──────────────────────────────────────────────
+
+var testExcludeDirs = map[string]bool{
+	".git":         true,
+	".grove":       true,
+	"vendor":       true,
+	"node_modules": true,
+}
+
+func addTestDirRecursive(fsw *fsnotify.Watcher, root string) error {
+	return filepath.WalkDir(
+		root,
+		func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if testExcludeDirs[d.Name()] {
+					return filepath.SkipDir
+				}
+				return fsw.Add(path)
+			}
+			return nil
+		},
+	)
+}
+
+func shouldHandleTestEvent(event fsnotify.Event) bool {
+	if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
+		return false
+	}
+	return filepath.Ext(event.Name) == ".go"
+}
+
+// ──────────────────────────────────────────────
+// Formatting helpers
+// ──────────────────────────────────────────────
+
+func fmtTestElapsed(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%.0fms", float64(d)/float64(time.Millisecond))
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
