@@ -36,7 +36,7 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:dto" + colorReset + "         <Name>   Scaffold a DTO request/response file\n" +
 		"    grove " + colorGreen + "make:middleware" + colorReset + "  <Name>   Scaffold an HTTP middleware\n" +
 		"    grove " + colorGreen + "make:migration" + colorReset + "   <name>   Generate a migration via atlas migrate diff\n" +
-		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + migration + controller + DTO at once\n"
+		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + controller + DTO at once\n"
 
 	update := "\n" +
 		"  " + colorBold + colorGray + "MAINTENANCE" + colorReset + "\n" +

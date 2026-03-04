@@ -17,10 +17,11 @@ var makeMigrationCmd = &cobra.Command{
 	Long: bold(
 		"make:migration",
 	) + ` generates a new SQL migration file by diffing your GORM
-models against the current database schema using Atlas.
+	models against the current database schema using Atlas.
 
-Make sure you have added or updated your models in ` + colorCyan + `internal/models/` + colorReset + `
-before running this command.
+	` + colorYellow + `Important:` + colorReset + ` always edit your model in ` + colorCyan + `internal/models/` + colorReset + ` first,
+	then run this command — Atlas will produce the exact SQL diff between your
+	updated struct and the current database schema.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:migration add_posts_table
@@ -66,12 +67,17 @@ func runMakeMigration(cmd *cobra.Command, args []string) error {
 		"--env", makeMigrationEnv,
 	}
 
+	aw := newAtlasOutputWriter(os.Stdout)
+
 	c := exec.Command("atlas", atlasArgs...)
-	c.Stdout = newIndentWriter(os.Stdout, "  ")
-	c.Stderr = newIndentWriter(os.Stderr, "  ")
+	c.Stdout = aw
+	c.Stderr = aw
 	c.Stdin = os.Stdin
 
-	if err := c.Run(); err != nil {
+	err := c.Run()
+	aw.Flush()
+
+	if err != nil {
 		return fmt.Errorf("atlas migrate diff failed: %w", err)
 	}
 

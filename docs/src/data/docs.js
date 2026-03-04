@@ -384,7 +384,7 @@ grove build -o ./bin/my-api`
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove make:model <Name> [-m] [-c] [-d] [-r]`
+            code: `grove make:model <Name> [-c] [-d] [-r]`
           },
           {
             type: 'table',
