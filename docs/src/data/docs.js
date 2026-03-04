@@ -75,11 +75,15 @@ grove dev:air`
             items: [
               {
                 title: 'Scaffold a resource',
-                text: 'Run <code>grove make:resource Post</code> to generate a model, migration, controller and DTO in one shot.'
+                text: 'Run <code>grove make:resource Post</code> to generate a model, controller and DTO in one shot.'
               },
               {
-                title: 'Generate a migration',
-                text: 'Run <code>grove make:migration create_posts_table</code> to diff your models against the current schema.'
+                title: 'Add your fields',
+                text: 'Edit <code>internal/models/post.go</code> to add your fields (e.g. <code>Title</code>, <code>Body</code>). Also fill in <code>internal/dto/post-dto.go</code> with your request/response fields.'
+              },
+              {
+                title: 'Generate the migration',
+                text: 'Run <code>grove make:migration create_posts_table</code> — Atlas diffs your updated model against the current DB schema and generates the exact SQL.'
               },
               {
                 title: 'Apply it',
@@ -387,10 +391,6 @@ grove build -o ./bin/my-api`
             head: ['Flag', 'Description'],
             rows: [
               [
-                '<code>-m</code>, <code>--migration</code>',
-                'Also run <code>atlas migrate diff</code> to generate a migration'
-              ],
-              [
                 '<code>-c</code>, <code>--controller</code>',
                 'Also scaffold a fuego controller'
               ],
@@ -400,21 +400,24 @@ grove build -o ./bin/my-api`
               ],
               [
                 '<code>-r</code>, <code>--resource</code>',
-                'Full resource — shorthand for <code>-m -c -d</code> combined'
+                'Full resource — shorthand for <code>-c -d</code> combined'
               ]
             ]
+          },
+          {
+            type: 'note',
+            kind: 'warning',
+            text: 'Migrations are <strong>not</strong> generated automatically when scaffolding a model. Add your fields to the model first, then run <code>grove make:migration &lt;name&gt;</code> to let Atlas diff your schema and generate the correct SQL. This ensures the migration reflects the fields you actually defined — not an empty struct.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'examples',
             code: `grove make:model Post            # model only
-grove make:model Post -m         # model + migration
 grove make:model Post -c         # model + controller
 grove make:model Post -d         # model + DTO
-grove make:model Post -mc        # model + migration + controller
-grove make:model Post -mcd       # model + migration + controller + DTO
-grove make:model Post -r         # full resource (same as -mcd)
+grove make:model Post -cd        # model + controller + DTO
+grove make:model Post -r         # full resource (same as -cd)
 grove make:model order_item      # → OrderItem`
           },
           {
@@ -632,7 +635,7 @@ s.Run()`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Generates a new SQL migration file by diffing your GORM models against the current database schema using Atlas. Make sure your models are up-to-date before running this.'
+            text: 'Generates a new SQL migration file by diffing your GORM models against the current database schema using Atlas. <strong>Always edit your model first</strong>, then run this command — Atlas will produce the exact SQL diff between your updated struct and the current DB schema.'
           },
           {
             type: 'code',
@@ -661,8 +664,8 @@ grove make:migration create_orders_table --env dev`
           },
           {
             type: 'note',
-            kind: 'info',
-            text: 'When you run <code>grove make:model Post -m</code> the migration is generated automatically with the name <code>create_posts_table</code> — you do not need to run this command separately.'
+            kind: 'tip',
+            text: 'Need to update an existing table? Add the new fields to your struct, then run <code>grove make:migration add_&lt;field&gt;_to_&lt;table&gt;</code> — Atlas will generate an <code>ALTER TABLE</code> migration with exactly the diff between the current DB schema and your updated model.'
           },
           {
             type: 'note',
@@ -677,11 +680,16 @@ grove make:migration create_orders_table --env dev`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a model, migration, controller and DTO in one shot. Equivalent to running <code>grove make:model &lt;Name&gt; -r</code>. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
+            text: 'Scaffolds a model, controller and DTO in one shot. Equivalent to running <code>grove make:model &lt;Name&gt; -r</code>. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
           },
           {
             type: 'paragraph',
             text: 'The entity name is <strong>automatically singularized</strong> before generating files, so you can pass the name in any form and Grove will always produce consistent output.'
+          },
+          {
+            type: 'note',
+            kind: 'warning',
+            text: '<strong>Migrations are not generated automatically.</strong> After scaffolding, add your fields to the model, then run <code>grove make:migration create_&lt;table&gt;_table</code> to generate the SQL. This ensures the migration reflects the actual fields you defined.'
           },
           {
             type: 'code',
@@ -700,42 +708,62 @@ grove make:resource order_items # → OrderItem model, order_items table`
           },
           {
             type: 'table',
-            head: ['Input', 'Resolved name', 'File', 'Table', 'Migration'],
+            head: ['Input', 'Resolved name', 'File', 'Table'],
             rows: [
               [
                 '<code>Post</code>',
                 '<code>Post</code>',
                 '<code>post.go</code>',
-                '<code>posts</code>',
-                '<code>create_posts_table</code>'
+                '<code>posts</code>'
               ],
               [
                 '<code>Posts</code>',
                 '<code>Post</code>',
                 '<code>post.go</code>',
-                '<code>posts</code>',
-                '<code>create_posts_table</code>'
+                '<code>posts</code>'
               ],
               [
                 '<code>BlogPost</code>',
                 '<code>BlogPost</code>',
                 '<code>blog_post.go</code>',
-                '<code>blog_posts</code>',
-                '<code>create_blog_posts_table</code>'
+                '<code>blog_posts</code>'
               ],
               [
                 '<code>order_items</code>',
                 '<code>OrderItem</code>',
                 '<code>order_item.go</code>',
-                '<code>order_items</code>',
-                '<code>create_order_items_table</code>'
+                '<code>order_items</code>'
               ]
+            ]
+          },
+          {
+            type: 'paragraph',
+            text: 'After running <code>make:resource</code>, follow this workflow:'
+          },
+          {
+            type: 'table',
+            head: ['Step', 'Action'],
+            rows: [
+              [
+                '1',
+                'Add fields to the model in <code>internal/models/&lt;name&gt;.go</code>'
+              ],
+              [
+                '2',
+                'Add request/response fields to the DTO in <code>internal/dto/&lt;name&gt;-dto.go</code>'
+              ],
+              [
+                '3',
+                'Run <code>grove make:migration create_&lt;table&gt;_table</code> to generate the SQL diff'
+              ],
+              ['4', 'Run <code>grove migrate</code> to apply it'],
+              ['5', 'Register routes in <code>internal/routes/</code>']
             ]
           },
           {
             type: 'note',
             kind: 'tip',
-            text: 'This is the fastest way to bootstrap a new feature. After running it, add your fields to the model and DTO, apply the migration with <code>grove migrate</code>, then register your routes.'
+            text: 'This is the fastest way to bootstrap a new feature — scaffolding takes seconds, and the explicit migration step ensures the SQL always matches the fields you actually defined.'
           }
         ]
       },
@@ -745,13 +773,41 @@ grove make:resource order_items # → OrderItem model, order_items table`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Applies all pending migrations to the database using <code>atlas migrate apply</code>.'
+            text: 'Applies all pending migrations to the database using <code>atlas migrate apply</code>. Grove parses the Atlas output and renders it with badges, syntax-highlighted SQL keywords and a formatted summary.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
             code: `grove migrate [--env <atlas-env>]`
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'output example',
+            code: `  Running migrations (atlas migrate apply --env local)
+
+   MIGRATE   20260127143000
+
+    CREATE TABLE  users ( … )
+    CREATE INDEX  idx_users_deleted_at ON users(deleted_at)
+   OK   18.4ms
+
+   MIGRATE   20260304122639
+
+    ALTER TABLE  "public"."users" DROP CONSTRAINT …
+    CREATE TABLE  "public"."books" ( … )
+    CREATE INDEX  "idx_books_deleted_at" ON "public"."books" …
+   OK   5.2ms
+
+  ────────────────────────────────────────
+  81.473ms
+  2 migrations
+  9 sql statements`
+          },
+          {
+            type: 'paragraph',
+            text: 'Each migration version gets a <code>MIGRATE</code> badge. SQL keywords (<code>CREATE TABLE</code>, <code>ALTER TABLE</code>, <code>DROP INDEX</code>, etc.) are highlighted in cyan. Continuation lines of multi-line statements are dimmed. If all migrations are already applied, Grove prints an <code>UP TO DATE</code> badge instead.'
           },
           {
             type: 'table',
@@ -1453,6 +1509,39 @@ ALTER TABLE "posts" ADD COLUMN "published_at" timestamptz NULL;
 
 -- Create index for efficient filtering by published_at
 CREATE INDEX "idx_posts_published_at" ON "posts" ("published_at");`
+          },
+          {
+            type: 'paragraph',
+            text: "<code>grove migrate</code> parses the Atlas output and renders it with Grove's colour palette — each migration version gets a <code>MIGRATE</code> badge, SQL keywords are highlighted in cyan, and a summary line shows total time, migrations and statements applied:"
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'grove migrate output',
+            code: `  Running migrations (atlas migrate apply --env local)
+
+   MIGRATE   20260127143000
+
+    CREATE TABLE  users ( … )
+    CREATE INDEX  idx_users_deleted_at ON users(deleted_at)
+   OK   18.4ms
+
+   MIGRATE   20260304122639
+
+    ALTER TABLE  "public"."users" DROP CONSTRAINT …
+    CREATE TABLE  "public"."books" ( … )
+    CREATE INDEX  "idx_books_deleted_at" ON "public"."books" …
+   OK   5.2ms
+
+  ────────────────────────────────────────
+  81.473ms
+  2 migrations
+  9 sql statements`
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'If all migrations are already applied, Grove prints an <code>UP TO DATE</code> badge instead of a migration list.'
           },
           {
             type: 'note',

@@ -84,19 +84,19 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | Command | Description |
 |---|---|
 | `grove make:model <Name>` | Scaffold a GORM model in `internal/models/` |
-| `grove make:model <Name> -m` | Scaffold model + migration (Atlas diff) |
 | `grove make:model <Name> -c` | Scaffold model + controller |
 | `grove make:model <Name> -d` | Scaffold model + DTO |
-| `grove make:model <Name> -mc` | Scaffold model + migration + controller |
-| `grove make:model <Name> -mcd` | Scaffold model + migration + controller + DTO |
-| `grove make:model <Name> -r` | Full resource — shorthand for `-mcd` |
+| `grove make:model <Name> -cd` | Scaffold model + controller + DTO |
+| `grove make:model <Name> -r` | Full resource — shorthand for `-cd` |
 | `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` |
 | `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
-| `grove make:migration <name>` | Generate a SQL migration via Atlas diff |
-| `grove make:resource <Name>` | Scaffold model + migration + controller + DTO in one shot |
+| `grove make:migration <name>` | Generate a SQL migration via Atlas diff (after editing your model) |
+| `grove make:resource <Name>` | Scaffold model + controller + DTO in one shot |
 
-> **Name singularization:** all generator commands accept plural or mixed-case names and convert them automatically. `Books`, `books`, and `Book` all produce the same `Book` model, `books` table, and `create_books_table` migration.
+> **Name singularization:** all generator commands accept plural or mixed-case names and convert them automatically. `Books`, `books`, and `Book` all produce the same `Book` model and `books` table.
+
+> **Migration workflow:** migrations are **not** generated automatically when scaffolding a model or resource. Add your fields to the model first, then run `grove make:migration <name>` to let Atlas diff your schema and generate the correct SQL. This ensures the migration reflects the fields you actually defined.
 
 ### Testing
 
@@ -128,6 +128,32 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove migrate:status` | Show migration status |
 | `grove migrate:fresh` | Drop all tables and re-apply every migration ⚠️ |
 | `grove migrate:hash` | Rehash the `atlas.sum` file |
+
+`grove migrate` formats the Atlas output with Grove's colour palette — each migration version gets a `MIGRATE` badge, SQL statements are syntax-highlighted with the keyword in cyan, and a final summary line shows total time, migrations and statements applied:
+
+```
+  Running migrations (atlas migrate apply --env local)
+
+   MIGRATE   20260127143000
+
+    CREATE TABLE  users ( … )
+    CREATE INDEX  idx_users_deleted_at ON users(deleted_at)
+   OK   18.4ms
+
+   MIGRATE   20260304122639
+
+    ALTER TABLE  "public"."users" DROP CONSTRAINT …
+    CREATE TABLE  "public"."books" ( … )
+    CREATE INDEX  "idx_books_deleted_at" ON "public"."books" …
+   OK   5.2ms
+
+  ────────────────────────────────────────
+  81.473ms
+  2 migrations
+  9 sql statements
+```
+
+If all migrations are already applied, Grove prints an `UP TO DATE` badge instead.
 
 ### Maintenance
 
@@ -204,21 +230,32 @@ The `internal/` boundary is intentional — it prevents external packages from i
 ## Typical Workflow
 
 ```bash
-# 1. Scaffold a full resource (model + migration + controller + DTO)
+# 1. Scaffold a full resource (model + controller + DTO)
 grove make:resource Post
 
-# 2. Add fields to the model and DTO, then apply the migration
+# 2. Add your fields to the model
+#    edit internal/models/post.go → add Title, Body, etc.
+
+# 3. Add request/response fields to the DTO
+#    edit internal/dto/post-dto.go
+
+# 4. Generate the migration — Atlas diffs your model against the DB
+grove make:migration create_posts_table
+
+# 5. Apply the migration
 grove migrate
 
-# 3. Register routes in internal/routes/routes.go
+# 6. Register routes in internal/routes/routes.go
 #    fuego.Post(s, "/posts", controllers.CreatePost)
 
-# 4. Write tests for your new resource
+# 7. Write tests for your new resource
 grove make:test Post
 
-# 5. Run the test suite
+# 8. Run the test suite
 grove test -c
 ```
+
+> **Updating a model later?** Add the new fields to your struct, then run `grove make:migration add_<field>_to_posts` — Atlas will generate an `ALTER TABLE` migration with exactly the diff between the current DB schema and your updated model.
 
 ---
 

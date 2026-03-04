@@ -2,15 +2,12 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	makeModelWithMigration  bool
 	makeModelWithController bool
 	makeModelWithDTO        bool
 	makeModelResource       bool
@@ -32,17 +29,22 @@ so you can pass the name in any form:
 
 Combine flags to scaffold additional layers in one shot:
 
-  ` + colorGreen + `-m` + colorReset + `  also generate a migration via atlas migrate diff
   ` + colorGreen + `-c` + colorReset + `  also scaffold a fuego controller
   ` + colorGreen + `-d` + colorReset + `  also scaffold a DTO request/response file
-  ` + colorGreen + `-r` + colorReset + `  full resource — shorthand for ` + colorGreen + `-m -c -d` + colorReset + ` combined
+  ` + colorGreen + `-r` + colorReset + `  full resource — shorthand for ` + colorGreen + `-c -d` + colorReset + ` combined
+
+` + colorYellow + `Migration workflow:` + colorReset + `
+  Migrations are NOT generated automatically. After adding fields to your model,
+  run ` + colorGreen + `grove make:migration <name>` + colorReset + ` to generate the SQL diff via Atlas.
+
+  This ensures your migration reflects the actual fields you defined — not an
+  empty struct scaffolded before you had a chance to edit it.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:model Post
   grove make:model Posts        # same as Post (singularized)
-  grove make:model Post -m
-  grove make:model Post -mc
-  grove make:model Post -mcd
+  grove make:model Post -c
+  grove make:model Post -cd
   grove make:model Post -r
   grove make:model BlogPost -c
   grove make:model BlogPost -d
@@ -52,11 +54,6 @@ Combine flags to scaffold additional layers in one shot:
 }
 
 func init() {
-	makeModelCmd.Flags().BoolVarP(
-		&makeModelWithMigration,
-		"migration", "m", false,
-		"Also generate a migration via atlas migrate diff",
-	)
 	makeModelCmd.Flags().BoolVarP(
 		&makeModelWithController,
 		"controller", "c", false,
@@ -70,7 +67,7 @@ func init() {
 	makeModelCmd.Flags().BoolVarP(
 		&makeModelResource,
 		"resource", "r", false,
-		"Full resource — shorthand for -m -c -d",
+		"Full resource — shorthand for -c -d",
 	)
 }
 
@@ -79,9 +76,8 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 	snake := toSnakeCase(name)
 	tableName := toPlural(snake)
 
-	// -r expands to -m -c -d
+	// -r expands to -c -d
 	if makeModelResource {
-		makeModelWithMigration = true
 		makeModelWithController = true
 		makeModelWithDTO = true
 	}
@@ -109,54 +105,6 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 		}
 	}
 
-	// ── migration ────────────────────────────────────────────────────────────
-	if makeModelWithMigration {
-		migrationName := "create_" + strings.ToLower(tableName) + "_table"
-
-		fmt.Println()
-		fmt.Printf(
-			"  %sGenerating migration%s %s %s\n",
-			colorGray, colorReset,
-			bold(migrationName),
-			gray("(atlas migrate diff --env local)"),
-		)
-		fmt.Println()
-
-		if _, err := exec.LookPath("atlas"); err != nil {
-			fmt.Println(
-				warn("atlas CLI not found — skipping migration generation"),
-			)
-			fmt.Printf(
-				"  %sInstall it from: %s\n",
-				colorGray,
-				colorCyan+"https://atlasgo.io/docs"+colorReset,
-			)
-		} else {
-			c := exec.Command(
-				"atlas",
-				"migrate",
-				"diff",
-				migrationName,
-				"--env",
-				"local",
-			)
-			c.Stdout = newIndentWriter(os.Stdout, "  ")
-			c.Stderr = newIndentWriter(os.Stderr, "  ")
-			c.Stdin = os.Stdin
-
-			if err := c.Run(); err != nil {
-				return fmt.Errorf("atlas migrate diff failed: %w", err)
-			}
-
-			fmt.Println()
-			fmt.Println(done(
-				"Migration " + bold(
-					migrationName,
-				) + " created in " + colorCyan + "migrations/" + colorReset,
-			))
-		}
-	}
-
 	// ── next steps ───────────────────────────────────────────────────────────
 	fmt.Println()
 	fmt.Println(nextSteps())
@@ -164,7 +112,7 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 	step := 1
 
 	fmt.Printf(
-		"    %s%d.%s Add your fields to the struct in %s\n",
+		"    %s%d.%s Add your fields to the model in %s\n",
 		colorGray, step, colorReset,
 		colorCyan+"internal/models/"+snake+".go"+colorReset,
 	)
@@ -179,16 +127,16 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 		step++
 	}
 
-	if !makeModelWithMigration {
-		fmt.Printf(
-			"    %s%d.%s Run %s to generate the migration\n",
-			colorGray, step, colorReset,
-			colorGreen+"grove make:migration create_"+strings.ToLower(
-				tableName,
-			)+"_table"+colorReset,
-		)
-		step++
-	}
+	fmt.Printf(
+		"    %s%d.%s Run %s to generate the migration\n",
+		colorGray,
+		step,
+		colorReset,
+		colorGreen+"grove make:migration create_"+strings.ToLower(
+			tableName,
+		)+"_table"+colorReset,
+	)
+	step++
 
 	fmt.Printf(
 		"    %s%d.%s Run %s to apply it\n",

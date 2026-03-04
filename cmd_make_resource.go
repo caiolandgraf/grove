@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -11,10 +9,10 @@ import (
 
 var makeResourceCmd = &cobra.Command{
 	Use:   "make:resource <Name>",
-	Short: "Scaffold model + migration + controller + DTO at once",
+	Short: "Scaffold model + controller + DTO at once",
 	Long: bold(
 		"make:resource",
-	) + ` scaffolds a model, migration, controller and DTO file in one shot.
+	) + ` scaffolds a model, controller and DTO file in one shot.
 
 This is equivalent to running ` + colorCyan + `grove make:model <Name> -r` + colorReset + `.
 Every file respects the ` + colorCyan + `SKIPPED` + colorReset + ` rule — existing files are never overwritten.
@@ -22,9 +20,16 @@ Every file respects the ` + colorCyan + `SKIPPED` + colorReset + ` rule — exis
 The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
 so you can pass the name in any form:
 
-  ` + colorGray + `Post` + colorReset + `        → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `, migration ` + colorCyan + `create_posts_table` + colorReset + `
-  ` + colorGray + `Posts` + colorReset + `       → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `, migration ` + colorCyan + `create_posts_table` + colorReset + `
-  ` + colorGray + `order_items` + colorReset + ` → model ` + colorCyan + `OrderItem` + colorReset + `, table ` + colorCyan + `order_items` + colorReset + `, migration ` + colorCyan + `create_order_items_table` + colorReset + `
+  ` + colorGray + `Post` + colorReset + `        → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `
+  ` + colorGray + `Posts` + colorReset + `       → model ` + colorCyan + `Post` + colorReset + `, table ` + colorCyan + `posts` + colorReset + `
+  ` + colorGray + `order_items` + colorReset + ` → model ` + colorCyan + `OrderItem` + colorReset + `, table ` + colorCyan + `order_items` + colorReset + `
+
+` + colorYellow + `Migration workflow:` + colorReset + `
+  Migrations are NOT generated automatically. After adding fields to your model,
+  run ` + colorGreen + `grove make:migration <name>` + colorReset + ` to generate the SQL diff via Atlas.
+
+  This ensures your migration reflects the actual fields you defined — not an
+  empty struct scaffolded before you had a chance to edit it.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:resource Post
@@ -61,50 +66,6 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	// ── migration ────────────────────────────────────────────────────────────
-	fmt.Println()
-	fmt.Printf(
-		"  %sGenerating migration%s %s %s\n",
-		colorGray, colorReset,
-		bold(migrationName),
-		gray("(atlas migrate diff --env local)"),
-	)
-	fmt.Println()
-
-	if _, err := exec.LookPath("atlas"); err != nil {
-		fmt.Println(
-			warn("atlas CLI not found — skipping migration generation"),
-		)
-		fmt.Printf(
-			"  %sInstall it from: %s\n",
-			colorGray,
-			colorCyan+"https://atlasgo.io/docs"+colorReset,
-		)
-	} else {
-		c := exec.Command(
-			"atlas",
-			"migrate",
-			"diff",
-			migrationName,
-			"--env",
-			"local",
-		)
-		c.Stdout = newIndentWriter(os.Stdout, "  ")
-		c.Stderr = newIndentWriter(os.Stderr, "  ")
-		c.Stdin = os.Stdin
-
-		if err := c.Run(); err != nil {
-			return fmt.Errorf("atlas migrate diff failed: %w", err)
-		}
-
-		fmt.Println()
-		fmt.Println(done(
-			"Migration " + bold(
-				migrationName,
-			) + " created in " + colorCyan + "migrations/" + colorReset,
-		))
-	}
-
 	// ── next steps ───────────────────────────────────────────────────────────
 	fmt.Println()
 	fmt.Println(nextSteps())
@@ -120,12 +81,17 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		colorCyan+"internal/dto/"+toKebabCase(name)+"-dto.go"+colorReset,
 	)
 	fmt.Printf(
-		"    %s3.%s Run %s to apply the migration\n",
+		"    %s3.%s Run %s to generate the migration\n",
+		colorGray, colorReset,
+		colorGreen+"grove make:migration "+migrationName+colorReset,
+	)
+	fmt.Printf(
+		"    %s4.%s Run %s to apply it\n",
 		colorGray, colorReset,
 		colorGreen+"grove migrate"+colorReset,
 	)
 	fmt.Printf(
-		"    %s4.%s Register routes in %s\n",
+		"    %s5.%s Register routes in %s\n",
 		colorGray, colorReset,
 		colorCyan+"internal/routes/"+colorReset,
 	)

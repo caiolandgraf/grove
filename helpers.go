@@ -156,6 +156,224 @@ func (bw *buildOutputWriter) writeLine(line string) {
 }
 
 // ──────────────────────────────────────────────
+// atlasOutputWriter
+// ──────────────────────────────────────────────
+
+// atlasOutputWriter parses the raw text output of Atlas CLI commands and
+// re-renders it with Grove's colour palette and badge style.
+//
+// It recognises the following Atlas output patterns:
+//
+//	Migrating to version 20240101120000 (3 migrations in total):
+//	  -- migrating version 20240101120000
+//	    -> CREATE TABLE ...
+//	  -- ok (12.3ms)
+//	  -- error (12.3ms)
+//	  -------------------------
+//	  -- 81ms
+//	  -- 2 migrations
+//	  -- 9 sql statements
+//	No migration files to execute
+//	The migration directory is synced with the database, no migration files to execute
+type atlasOutputWriter struct {
+	w   io.Writer
+	buf []byte
+}
+
+func newAtlasOutputWriter(w io.Writer) *atlasOutputWriter {
+	return &atlasOutputWriter{w: w}
+}
+
+func (aw *atlasOutputWriter) Write(p []byte) (n int, err error) {
+	aw.buf = append(aw.buf, p...)
+	for {
+		nl := bytes.IndexByte(aw.buf, '\n')
+		if nl < 0 {
+			break
+		}
+		aw.writeLine(string(aw.buf[:nl]))
+		aw.buf = aw.buf[nl+1:]
+	}
+	return len(p), nil
+}
+
+func (aw *atlasOutputWriter) Flush() {
+	if len(aw.buf) > 0 {
+		aw.writeLine(string(aw.buf))
+		aw.buf = nil
+	}
+}
+
+func (aw *atlasOutputWriter) writeLine(line string) {
+	trimmed := strings.TrimSpace(line)
+
+	if trimmed == "" {
+		return
+	}
+
+	// ── "Migrating to version …" header ──────────────────────────────────────
+	if strings.HasPrefix(trimmed, "Migrating to version ") {
+		fmt.Fprintf(aw.w, "\n  %s%s%s\n", colorBold, trimmed, colorReset)
+		return
+	}
+
+	// ── "-- migrating version …" section opener ───────────────────────────────
+	if strings.HasPrefix(trimmed, "-- migrating version ") {
+		version := strings.TrimPrefix(trimmed, "-- migrating version ")
+		fmt.Fprintf(aw.w,
+			"\n  %s%s%s  %s%s%s\n",
+			colorBgBlue, " MIGRATE ", colorReset,
+			colorBold, version, colorReset,
+		)
+		return
+	}
+
+	// ── "-- ok (…)" success line ──────────────────────────────────────────────
+	if strings.HasPrefix(trimmed, "-- ok") {
+		elapsed := ""
+		if start := strings.Index(trimmed, "("); start >= 0 {
+			if end := strings.Index(trimmed, ")"); end > start {
+				elapsed = trimmed[start+1 : end]
+			}
+		}
+		if elapsed != "" {
+			fmt.Fprintf(aw.w,
+				"  %s%s%s  %s%s%s\n",
+				colorBgGreen, " OK ", colorReset,
+				colorGray, elapsed, colorReset,
+			)
+		} else {
+			fmt.Fprintf(aw.w, "  %s%s%s\n", colorBgGreen, " OK ", colorReset)
+		}
+		return
+	}
+
+	// ── "-- error (…)" failure line ───────────────────────────────────────────
+	if strings.HasPrefix(trimmed, "-- error") {
+		elapsed := ""
+		if start := strings.Index(trimmed, "("); start >= 0 {
+			if end := strings.Index(trimmed, ")"); end > start {
+				elapsed = trimmed[start+1 : end]
+			}
+		}
+		if elapsed != "" {
+			fmt.Fprintf(aw.w,
+				"  %s%s%s  %s%s%s\n",
+				colorBgRed, " ERROR ", colorReset,
+				colorGray, elapsed, colorReset,
+			)
+		} else {
+			fmt.Fprintf(aw.w, "  %s%s%s\n", colorBgRed, " ERROR ", colorReset)
+		}
+		return
+	}
+
+	// ── SQL statement lines ("-> …") ─────────────────────────────────────────
+	if strings.HasPrefix(trimmed, "-> ") {
+		sql := strings.TrimPrefix(trimmed, "-> ")
+		// Upper-case SQL keywords get a cyan tint; the rest stays plain.
+		keyword, rest := splitSQLKeyword(sql)
+		if keyword != "" {
+			fmt.Fprintf(aw.w,
+				"    %s%s%s %s\n",
+				colorCyan, keyword, colorReset, rest,
+			)
+		} else {
+			fmt.Fprintf(aw.w, "    %s%s%s\n", colorGray, sql, colorReset)
+		}
+		return
+	}
+
+	// ── Continuation lines of a multi-line SQL statement ─────────────────────
+	// Atlas indents them with spaces but no "-> " prefix after the first line.
+	// They only appear inside a migration block (after a "-> "), so we just
+	// render them indented and dimmed.
+	if strings.HasPrefix(line, "      ") || strings.HasPrefix(line, "\t") {
+		fmt.Fprintf(
+			aw.w,
+			"    %s%s%s\n",
+			colorGray+colorDim,
+			trimmed,
+			colorReset,
+		)
+		return
+	}
+
+	// ── Summary separator "---…" ──────────────────────────────────────────────
+	if strings.HasPrefix(trimmed, "---") {
+		fmt.Fprintf(
+			aw.w,
+			"\n  %s%s%s\n",
+			colorGray+colorDim,
+			strings.Repeat("─", 40),
+			colorReset,
+		)
+		return
+	}
+
+	// ── Summary stat lines ("-- 81ms", "-- 2 migrations", "-- 9 sql …") ──────
+	if strings.HasPrefix(trimmed, "-- ") {
+		stat := strings.TrimPrefix(trimmed, "-- ")
+		fmt.Fprintf(aw.w, "  %s%s%s\n", colorGray, stat, colorReset)
+		return
+	}
+
+	// ── "No migration files to execute" / already synced ─────────────────────
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "no migration") ||
+		strings.Contains(lower, "synced with the database") ||
+		strings.Contains(lower, "nothing to do") {
+		fmt.Fprintf(aw.w,
+			"\n  %s%s%s  %s%s%s\n\n",
+			colorBgGreen, " UP TO DATE ", colorReset,
+			colorGray, trimmed, colorReset,
+		)
+		return
+	}
+
+	// ── Fallback — indent and dim ─────────────────────────────────────────────
+	fmt.Fprintf(aw.w, "  %s%s%s\n", colorGray, trimmed, colorReset)
+}
+
+// splitSQLKeyword splits a SQL statement string into the first keyword and the
+// remainder. Returns ("", "") if the string doesn't start with a known keyword.
+func splitSQLKeyword(s string) (keyword, rest string) {
+	keywords := []string{
+		"CREATE UNIQUE INDEX",
+		"CREATE INDEX",
+		"CREATE EXTENSION",
+		"CREATE TABLE",
+		"CREATE SEQUENCE",
+		"CREATE TYPE",
+		"CREATE VIEW",
+		"CREATE FUNCTION",
+		"CREATE TRIGGER",
+		"ALTER TABLE",
+		"ALTER COLUMN",
+		"ALTER SEQUENCE",
+		"DROP TABLE",
+		"DROP INDEX",
+		"DROP COLUMN",
+		"DROP CONSTRAINT",
+		"DROP SEQUENCE",
+		"DROP TYPE",
+		"DROP VIEW",
+		"INSERT INTO",
+		"UPDATE",
+		"DELETE FROM",
+		"SELECT",
+		"COMMENT ON",
+	}
+	upper := strings.ToUpper(s)
+	for _, kw := range keywords {
+		if strings.HasPrefix(upper, kw) {
+			return kw, s[len(kw):]
+		}
+	}
+	return "", ""
+}
+
+// ──────────────────────────────────────────────
 // indentWriter
 // ──────────────────────────────────────────────
 

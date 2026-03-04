@@ -290,7 +290,8 @@ func runMigrateHash(cmd *cobra.Command, args []string) error {
 // ──────────────────────────────────────────────
 
 // runAtlas checks for the atlas binary, then runs it with the given arguments,
-// forwarding stdout/stderr and stdin to the terminal.
+// forwarding stdout/stderr through atlasOutputWriter so the output is rendered
+// with Grove's colour palette and badge style.
 func runAtlas(description string, atlasArgs ...string) error {
 	if _, err := exec.LookPath("atlas"); err != nil {
 		return fmt.Errorf(
@@ -299,12 +300,17 @@ func runAtlas(description string, atlasArgs ...string) error {
 		)
 	}
 
+	aw := newAtlasOutputWriter(os.Stdout)
+
 	c := exec.Command("atlas", atlasArgs...)
-	c.Stdout = newIndentWriter(os.Stdout, "  ")
-	c.Stderr = newIndentWriter(os.Stderr, "  ")
+	c.Stdout = aw
+	c.Stderr = aw
 	c.Stdin = os.Stdin
 
-	if err := c.Run(); err != nil {
+	err := c.Run()
+	aw.Flush()
+
+	if err != nil {
 		return fmt.Errorf("failed to %s: %w", description, err)
 	}
 
