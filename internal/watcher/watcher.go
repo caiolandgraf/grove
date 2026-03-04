@@ -558,6 +558,17 @@ func (aw *appOutputWriter) writeLine(line string) {
 		}
 	}
 
+	// ── slog text format (key=value) ──────────────────────────────────────────
+	// Matches the default output of log/slog's TextHandler:
+	//   time=2006-01-02T15:04:05.000Z level=INFO msg="hello" key=val
+	// Also matches logfmt-style lines that lack a time= prefix as long as
+	// they contain at least level= and msg= (or message=).
+	if rendered, allText, ok := renderSlogText(trimmed); ok {
+		fmt.Fprintln(aw.w, rendered)
+		aw.detectHints(allText)
+		return
+	}
+
 	// ── plain line ────────────────────────────────────────────────────────────
 	fmt.Fprintf(aw.w, "  %s\n", line)
 }
@@ -633,6 +644,207 @@ func (aw *appOutputWriter) flushPanic() {
 	}
 
 	aw.panicBuf = nil
+}
+
+// renderSlogText attempts to parse a log/slog TextHandler (or logfmt) line of
+// the form:
+//
+//	time=2006-01-02T15:04:05.000Z level=INFO msg="hello world" key=val key2="v 2"
+//
+// It returns (rendered, allText, true) on success, ("", "", false) if the line
+// does not look like a slog text entry (must have at least level= and msg= /
+// message= keys).
+func renderSlogText(line string) (string, string, bool) {
+	kv := parseSlogKV(line)
+	if len(kv) == 0 {
+		return "", "", false
+	}
+
+	level := firstOf(kv, "level", "lvl", "severity")
+	msg := firstOf(kv, "msg", "message", "Message")
+	ts := firstOf(kv, "time", "ts", "timestamp", "Time")
+
+	// Require at least level + msg to treat this as a structured log line.
+	if level == "" || msg == "" {
+		return "", "", false
+	}
+
+	// ── Level badge ───────────────────────────────────────────────────────────
+	var levelBadge string
+	switch strings.ToUpper(level) {
+	case "DEBUG":
+		levelBadge = ansiGray + ansiBold + "DBG" + ansiReset
+	case "INFO":
+		levelBadge = ansiGreen + ansiBold + "INF" + ansiReset
+	case "WARN", "WARNING":
+		levelBadge = ansiYellow + ansiBold + "WRN" + ansiReset
+	case "ERROR", "ERR":
+		levelBadge = ansiRed + ansiBold + "ERR" + ansiReset
+	case "FATAL", "PANIC":
+		levelBadge = ansiBgRed + " " + level + " " + ansiReset
+	default:
+		levelBadge = ansiGray + ansiBold + "LOG" + ansiReset
+	}
+
+	// ── Timestamp — keep only HH:MM:SS ───────────────────────────────────────
+	timeStr := ""
+	if ts != "" {
+		if idx := strings.IndexByte(ts, 'T'); idx >= 0 && len(ts) > idx+9 {
+			timeStr = ansiDim + ansiGray + ts[idx+1:idx+9] + ansiReset + "  "
+		}
+	}
+
+	// ── Message colour ────────────────────────────────────────────────────────
+	var msgColour string
+	switch strings.ToUpper(level) {
+	case "ERROR", "ERR", "FATAL", "PANIC":
+		msgColour = ansiRed
+	case "WARN", "WARNING":
+		msgColour = ansiYellow
+	}
+	msgPart := msg
+	if msgColour != "" {
+		msgPart = msgColour + msg + ansiReset
+	}
+
+	// ── Extra fields (skip standard ones already rendered) ────────────────────
+	skip := map[string]bool{
+		"level": true, "lvl": true, "severity": true,
+		"msg": true, "message": true, "Message": true,
+		"time": true, "ts": true, "timestamp": true, "Time": true,
+	}
+
+	// Build allText for hint detection while collecting extras.
+	allText := strings.ToLower(msg)
+	var extras []string
+	for _, k := range kvKeys(kv) {
+		v := kv[k]
+		allText += " " + strings.ToLower(v)
+		if skip[k] {
+			continue
+		}
+		val := v
+		if len(val) > 120 {
+			val = val[:117] + "…"
+		}
+		extras = append(extras, ansiGray+k+"="+ansiReset+ansiDim+val+ansiReset)
+	}
+
+	extra := ""
+	if len(extras) > 0 {
+		extra = "  " + strings.Join(extras, "  ")
+	}
+
+	return fmt.Sprintf(
+		"  %s%s%s  %s%s",
+		timeStr, levelBadge, ansiReset, msgPart, extra,
+	), allText, true
+}
+
+// parseSlogKV parses a slog TextHandler / logfmt line into an ordered map.
+// Values may be bare tokens or double-quoted strings (with \" escaping).
+// The insertion order of keys is preserved via kvKeys.
+func parseSlogKV(line string) map[string]string {
+	out := make(map[string]string)
+	rest := line
+	for len(rest) > 0 {
+		rest = strings.TrimLeft(rest, " \t")
+		if rest == "" {
+			break
+		}
+
+		// Find the '=' that separates key from value.
+		eqIdx := strings.IndexByte(rest, '=')
+		if eqIdx <= 0 {
+			break
+		}
+		key := rest[:eqIdx]
+		rest = rest[eqIdx+1:]
+
+		// Keys must be plain identifiers (no spaces).
+		if strings.ContainsAny(key, " \t\"") {
+			break
+		}
+
+		var val string
+		if len(rest) > 0 && rest[0] == '"' {
+			// Quoted value — scan to the closing unescaped '"'.
+			i := 1
+			var buf strings.Builder
+			for i < len(rest) {
+				if rest[i] == '\\' && i+1 < len(rest) {
+					buf.WriteByte(rest[i+1])
+					i += 2
+					continue
+				}
+				if rest[i] == '"' {
+					i++
+					break
+				}
+				buf.WriteByte(rest[i])
+				i++
+			}
+			val = buf.String()
+			rest = rest[i:]
+		} else {
+			// Bare value — ends at the next space.
+			end := strings.IndexAny(rest, " \t")
+			if end < 0 {
+				val = rest
+				rest = ""
+			} else {
+				val = rest[:end]
+				rest = rest[end:]
+			}
+		}
+
+		if _, exists := out[key]; !exists {
+			out[key] = val
+		}
+	}
+	return out
+}
+
+// kvKeys returns the keys of a slog KV map in a stable order: standard fields
+// first (time, level, msg), then the rest in the order they were encountered.
+// Because Go maps are unordered we reconstruct order from the original line.
+func kvKeys(kv map[string]string) []string {
+	priority := []string{
+		"time",
+		"ts",
+		"timestamp",
+		"Time",
+		"level",
+		"lvl",
+		"severity",
+		"msg",
+		"message",
+		"Message",
+	}
+	seen := make(map[string]bool)
+	var out []string
+	for _, k := range priority {
+		if _, ok := kv[k]; ok {
+			out = append(out, k)
+			seen[k] = true
+		}
+	}
+	for k := range kv {
+		if !seen[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// firstOf returns the first non-empty value found for any of the given keys.
+func firstOf(m map[string]string, keys ...string) string {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // renderJSONLog attempts to parse line as a structured log entry (slog/zap/
