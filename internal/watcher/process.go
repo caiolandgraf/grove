@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -65,8 +66,19 @@ func (p *Process) Restart(bin string) error {
 		cmd = exec.Command(parts[0], parts[1:]...)
 	}
 
-	cmd.Stdout = appOut
-	cmd.Stderr = appOut
+	// Use explicit pipes for stdout and stderr so we can drain them fully
+	// before calling Flush(). This guarantees that panic output written by
+	// the Go runtime to stderr is never lost even when the process exits
+	// immediately after writing (before the OS delivers the last bytes via
+	// the default cmd.Stdout / cmd.Stderr assignment).
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Start(); err != nil {
@@ -79,13 +91,28 @@ func (p *Process) Restart(bin string) error {
 	p.cmd = cmd
 	p.waitCh = waitCh
 
-	// ── 3. Reap the process in the background ────────────────────────────────
-	// cmd.Wait() is called exactly once per process — only here — so there is
-	// no risk of a "wait: process already finished" error.
+	// ── 3. Drain pipes + reap ─────────────────────────────────────────────────
+	// We drain stdout and stderr in dedicated goroutines and wait for both to
+	// finish before calling Flush(). This ensures every byte written by the
+	// child — including a panic dumped by the Go runtime right before exit —
+	// has been processed by appOut before we declare the process done.
 	go func() {
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(appOut, stdoutPipe)
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = io.Copy(appOut, stderrPipe)
+		}()
+
+		// Wait for both pipes to be fully drained (EOF), then wait for the
+		// process to exit, then flush any partial panic buffer.
+		wg.Wait()
 		_ = cmd.Wait()
-		// Flush any buffered output (e.g. a panic dump that ended at EOF
-		// without a trailing non-stack line) before closing the channel.
 		appOut.Flush()
 		close(waitCh)
 	}()
