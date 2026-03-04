@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+// appOut is the shared writer used by all child processes to format their
+// stdout/stderr through appOutputWriter before printing to the terminal.
+var appOut = newAppOutputWriter(os.Stdout)
+
 // Process manages the lifecycle of the running application binary.
 // It is safe for concurrent use — a sync.Mutex serialises all Restart calls
 // so that rapid file-change events never spawn duplicate processes.
@@ -61,8 +65,8 @@ func (p *Process) Restart(bin string) error {
 		cmd = exec.Command(parts[0], parts[1:]...)
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = appOut
+	cmd.Stderr = appOut
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Start(); err != nil {

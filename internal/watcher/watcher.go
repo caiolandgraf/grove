@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,10 +28,11 @@ const (
 	ansiCyan   = "\033[38;2;80;220;220m"
 	ansiGray   = "\033[38;2;130;130;145m"
 
-	ansiBgGreen = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
-	ansiBgRed   = "\033[48;2;195;55;55m\033[38;2;255;255;255m"
-	ansiBgBlue  = "\033[48;2;60;120;220m\033[38;2;255;255;255m"
-	ansiBgGrove = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
+	ansiBgGreen  = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
+	ansiBgRed    = "\033[48;2;195;55;55m\033[38;2;255;255;255m"
+	ansiBgBlue   = "\033[48;2;60;120;220m\033[38;2;255;255;255m"
+	ansiBgYellow = "\033[48;2;185;140;20m\033[38;2;255;255;255m"
+	ansiBgGrove  = "\033[48;2;40;180;80m\033[38;2;255;255;255m"
 )
 
 func badge(
@@ -234,6 +236,10 @@ func (w *Watcher) scheduleRebuild() {
 // runRebuild compiles the project and, on success, restarts the binary.
 // Build errors are printed but do not stop the watcher.
 func (w *Watcher) runRebuild() {
+	// Reset per-session state (hints, panic buffer) so every rebuild starts
+	// clean and hints are shown again if the error persists.
+	appOut.resetSession()
+
 	fmt.Println()
 	logDev(
 		badge(ansiBgBlue, "RE-BUILDING"),
@@ -412,4 +418,364 @@ func (bw *buildOutputWriter) writeLine(line string) {
 
 	// Error / warning line — fully red with × marker.
 	fmt.Fprintf(bw.w, "  %s× %s%s\n", ansiRed, line, ansiReset)
+}
+
+// ── appOutputWriter ───────────────────────────────────────────────────────────
+
+// appOutputWriter processes the running application's stdout/stderr line by
+// line and applies context-aware formatting:
+//
+//   - JSON log lines (slog / zap / zerolog structured output) are parsed and
+//     rendered as a human-readable coloured line.
+//   - "panic:" lines and the goroutine stack trace that follows are rendered
+//     in a red block with a clear PANIC badge.
+//   - All other lines are indented and passed through as-is.
+type appOutputWriter struct {
+	w        *os.File
+	buf      []byte
+	inPanic  bool
+	panicBuf []string
+	hintSeen map[string]bool
+}
+
+func newAppOutputWriter(w *os.File) *appOutputWriter {
+	return &appOutputWriter{w: w, hintSeen: map[string]bool{}}
+}
+
+// resetSession clears per-run state so hints are shown again on every rebuild.
+func (aw *appOutputWriter) resetSession() {
+	aw.inPanic = false
+	aw.panicBuf = nil
+	aw.hintSeen = map[string]bool{}
+}
+
+func (aw *appOutputWriter) Write(p []byte) (n int, err error) {
+	aw.buf = append(aw.buf, p...)
+
+	for {
+		nl := bytes.IndexByte(aw.buf, '\n')
+		if nl < 0 {
+			break
+		}
+		aw.writeLine(string(aw.buf[:nl]))
+		aw.buf = aw.buf[nl+1:]
+	}
+
+	return len(p), nil
+}
+
+func (aw *appOutputWriter) writeLine(line string) {
+	trimmed := strings.TrimSpace(line)
+
+	// ── blank line ────────────────────────────────────────────────────────────
+	if trimmed == "" {
+		if aw.inPanic {
+			aw.panicBuf = append(aw.panicBuf, "")
+		} else {
+			fmt.Fprintln(aw.w)
+		}
+		return
+	}
+
+	// ── panic accumulation ────────────────────────────────────────────────────
+	// Once we see "panic:" we collect lines until the goroutine dump ends
+	// (i.e. we hit a line that is not a stack frame, continuation or blank).
+	if strings.HasPrefix(trimmed, "panic:") {
+		aw.inPanic = true
+		aw.panicBuf = []string{trimmed}
+		return
+	}
+
+	if aw.inPanic {
+		// Goroutine header, stack frames, file:line references all belong to
+		// the panic dump.  We keep collecting until the line doesn't look like
+		// part of a stack trace anymore.
+		isStackLine := strings.HasPrefix(trimmed, "goroutine ") ||
+			strings.HasPrefix(trimmed, "main.") ||
+			strings.HasPrefix(trimmed, "runtime.") ||
+			strings.HasPrefix(line, "\t") ||
+			strings.Contains(trimmed, ".go:")
+
+		if isStackLine {
+			aw.panicBuf = append(aw.panicBuf, line)
+			return
+		}
+
+		// End of panic dump — flush everything at once.
+		aw.flushPanic()
+	}
+
+	// ── JSON structured log line ──────────────────────────────────────────────
+	if len(trimmed) > 0 && trimmed[0] == '{' {
+		if rendered, allText, ok := renderJSONLog(trimmed); ok {
+			fmt.Fprintln(aw.w, rendered)
+			aw.detectHints(allText)
+			return
+		}
+	}
+
+	// ── plain line ────────────────────────────────────────────────────────────
+	fmt.Fprintf(aw.w, "  %s\n", line)
+}
+
+// flushPanic prints the accumulated panic dump as a styled red block.
+// Known panic messages get an extra actionable hint printed below the block.
+func (aw *appOutputWriter) flushPanic() {
+	aw.inPanic = false
+	if len(aw.panicBuf) == 0 {
+		return
+	}
+
+	// Extract the raw panic message for hint detection.
+	panicMsg := ""
+	for _, l := range aw.panicBuf {
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "panic:") {
+			panicMsg = strings.ToLower(
+				strings.TrimSpace(strings.TrimPrefix(trimmed, "panic:")),
+			)
+			break
+		}
+	}
+
+	fmt.Fprintln(aw.w)
+	fmt.Fprintf(aw.w, "  %s\n", badge(ansiBgRed, "PANIC"))
+	fmt.Fprintln(aw.w)
+
+	for _, l := range aw.panicBuf {
+		trimmed := strings.TrimSpace(l)
+		if trimmed == "" {
+			fmt.Fprintln(aw.w)
+			continue
+		}
+		// First line is the panic message itself — bold red.
+		if strings.HasPrefix(trimmed, "panic:") {
+			msg := strings.TrimSpace(strings.TrimPrefix(trimmed, "panic:"))
+			fmt.Fprintf(aw.w, "  %s%s%s\n", ansiRed+ansiBold, msg, ansiReset)
+			continue
+		}
+		// Goroutine header.
+		if strings.HasPrefix(trimmed, "goroutine ") {
+			fmt.Fprintf(aw.w, "\n  %s%s%s\n", ansiGray, trimmed, ansiReset)
+			continue
+		}
+		// File/line references (indented with tab in original).
+		if strings.HasPrefix(l, "\t") {
+			fmt.Fprintf(
+				aw.w,
+				"    %s%s%s\n",
+				ansiDim+ansiGray,
+				trimmed,
+				ansiReset,
+			)
+			continue
+		}
+		// Function names.
+		fmt.Fprintf(aw.w, "  %s%s%s\n", ansiGray, trimmed, ansiReset)
+	}
+
+	fmt.Fprintln(aw.w)
+
+	// ── Actionable hints for known panic messages ─────────────────────────────
+	if strings.Contains(panicMsg, ".env") &&
+		strings.Contains(panicMsg, "not found") {
+		printHint(aw.w,
+			"Environment file not found.",
+			[]string{
+				"cp .env.example .env",
+				"# then edit .env with your database credentials",
+			},
+		)
+	}
+
+	aw.panicBuf = nil
+}
+
+// renderJSONLog attempts to parse line as a structured log entry (slog/zap/
+// zerolog) and renders it as a human-readable coloured string.
+// Returns (rendered, true) on success, ("", false) if line is not valid JSON
+// or doesn't look like a log entry.
+//
+// For known error patterns (database connection refused, etc.) an actionable
+// hint is printed to os.Stdout immediately after the log line.
+func renderJSONLog(line string) (string, string, bool) {
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		return "", "", false
+	}
+
+	// ── Extract standard fields ───────────────────────────────────────────────
+	level := extractString(entry, "level", "lvl", "severity")
+	msg := extractString(entry, "msg", "message", "Message")
+	ts := extractString(entry, "time", "ts", "timestamp", "Time")
+
+	if msg == "" {
+		return "", "", false
+	}
+
+	// ── Detect known error patterns and queue a hint ──────────────────────────
+	// Collect all string values in the entry to search across msg + extra fields.
+	allText := strings.ToLower(msg)
+	for _, v := range entry {
+		if s, ok := v.(string); ok {
+			allText += " " + strings.ToLower(s)
+		}
+	}
+	// Build allText — the combined lowercased text of all fields — returned to
+	// the caller so it can call detectHints without needing to re-parse.
+
+	// ── Level badge ───────────────────────────────────────────────────────────
+	var levelBadge string
+	switch strings.ToUpper(level) {
+	case "DEBUG":
+		levelBadge = ansiGray + ansiBold + "DBG" + ansiReset
+	case "INFO":
+		levelBadge = ansiGreen + ansiBold + "INF" + ansiReset
+	case "WARN", "WARNING":
+		levelBadge = ansiYellow + ansiBold + "WRN" + ansiReset
+	case "ERROR", "ERR":
+		levelBadge = ansiRed + ansiBold + "ERR" + ansiReset
+	case "FATAL", "PANIC":
+		levelBadge = ansiBgRed + " " + level + " " + ansiReset
+	default:
+		levelBadge = ansiGray + ansiBold + "LOG" + ansiReset
+	}
+
+	// ── Timestamp — keep only HH:MM:SS ───────────────────────────────────────
+	timeStr := ""
+	if ts != "" {
+		// ISO-8601: take only the time portion HH:MM:SS
+		if idx := strings.IndexByte(ts, 'T'); idx >= 0 && len(ts) > idx+9 {
+			timeStr = ansiDim + ansiGray + ts[idx+1:idx+9] + ansiReset + "  "
+		}
+	}
+
+	// ── Extra fields (skip standard ones already rendered) ───────────────────
+	skip := map[string]bool{
+		"level": true, "lvl": true, "severity": true,
+		"msg": true, "message": true, "Message": true,
+		"time": true, "ts": true, "timestamp": true, "Time": true,
+	}
+
+	var extras []string
+	for k, v := range entry {
+		if skip[k] {
+			continue
+		}
+		var valStr string
+		switch vv := v.(type) {
+		case string:
+			valStr = vv
+		default:
+			b, _ := json.Marshal(vv)
+			valStr = string(b)
+		}
+		// Truncate very long values.
+		if len(valStr) > 120 {
+			valStr = valStr[:117] + "…"
+		}
+		extras = append(
+			extras,
+			ansiGray+k+"="+ansiReset+ansiDim+valStr+ansiReset,
+		)
+	}
+
+	// ── Colour the message based on level ────────────────────────────────────
+	var msgColour string
+	switch strings.ToUpper(level) {
+	case "ERROR", "ERR", "FATAL", "PANIC":
+		msgColour = ansiRed
+	case "WARN", "WARNING":
+		msgColour = ansiYellow
+	default:
+		msgColour = ""
+	}
+
+	msgPart := msgColour + msg + ansiReset
+	if msgColour == "" {
+		msgPart = msg
+	}
+
+	extra := ""
+	if len(extras) > 0 {
+		extra = "  " + strings.Join(extras, "  ")
+	}
+
+	return fmt.Sprintf(
+		"  %s%s%s  %s%s",
+		timeStr,
+		levelBadge,
+		ansiReset,
+		msgPart,
+		extra,
+	), allText, true
+}
+
+// extractString returns the first non-empty string value found for any of the
+// given keys in the map.
+func extractString(m map[string]interface{}, keys ...string) string {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// ── Known-error hint engine ───────────────────────────────────────────────────
+
+// detectHints inspects the combined lowercased text of a log entry and prints
+// an actionable hint block when a known error pattern is recognised.
+// Each pattern is only printed once per rebuild via aw.hintSeen.
+func (aw *appOutputWriter) detectHints(text string) {
+	switch {
+	case (strings.Contains(text, "connection refused") ||
+		strings.Contains(text, "dial error") ||
+		strings.Contains(text, "failed to connect") ||
+		strings.Contains(text, "failed to initialize database")) &&
+		!aw.hintSeen["db"]:
+
+		aw.hintSeen["db"] = true
+		printHint(aw.w,
+			"Cannot connect to the database.",
+			[]string{
+				"# make sure your database is running:",
+				"docker compose up -d",
+				"# or check your DB_HOST / DB_PORT in .env",
+			},
+		)
+
+	case strings.Contains(text, ".env") && strings.Contains(text, "not found") &&
+		!aw.hintSeen["env"]:
+
+		aw.hintSeen["env"] = true
+		printHint(aw.w,
+			"Environment file not found.",
+			[]string{
+				"cp .env.example .env",
+				"# then edit .env with your database credentials",
+			},
+		)
+	}
+}
+
+// printHint renders a styled actionable hint block to w.
+func printHint(w *os.File, title string, steps []string) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w,
+		"  %s  %s%s%s\n",
+		badge(ansiBgYellow, "HINT"),
+		ansiBold, title, ansiReset,
+	)
+	fmt.Fprintln(w)
+	for _, s := range steps {
+		if strings.HasPrefix(s, "#") {
+			fmt.Fprintf(w, "    %s%s%s\n", ansiGray+ansiDim, s, ansiReset)
+		} else {
+			fmt.Fprintf(w, "    %s%s%s\n", ansiGreen, s, ansiReset)
+		}
+	}
+	fmt.Fprintln(w)
 }
