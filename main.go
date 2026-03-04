@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.3.0"
+const version = "1.4.0"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -38,6 +38,10 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:migration" + colorReset + "   <name>   Generate a migration via atlas migrate diff\n" +
 		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + migration + controller + DTO at once\n"
 
+	update := "\n" +
+		"  " + colorBold + colorGray + "MAINTENANCE" + colorReset + "\n" +
+		"    grove " + colorGray + "update" + colorReset + "      Update Grove project dependencies to their latest versions\n"
+
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
 		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart on save (built-in, no Air)\n" +
@@ -65,7 +69,7 @@ func buildBanner() string {
 		"    grove " + colorGray + "setup" + colorReset + "       <project-name>   Scaffold a new Grove project from template\n" +
 		"    grove " + colorGray + "completion" + colorReset + "  [bash|zsh|fish|powershell]   Generate completion script\n"
 
-	return logo + tagline + "\n" + sep + generators + server + database + testing + setup + "\n" + sep + "\n"
+	return logo + tagline + "\n" + sep + generators + server + database + testing + setup + update + "\n" + sep + "\n"
 }
 
 func init() {
@@ -86,6 +90,7 @@ func init() {
 		&cobra.Group{ID: "server", Title: "Server & Build:"},
 		&cobra.Group{ID: "database", Title: "Database:"},
 		&cobra.Group{ID: "setup", Title: "Setup:"},
+		&cobra.Group{ID: "maintenance", Title: "Maintenance:"},
 	)
 
 	// ── Generators ────────────────────────────────────────────────────────────
@@ -139,6 +144,11 @@ func init() {
 
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(completionCmd)
+
+	// ── Maintenance ───────────────────────────────────────────────────────────
+	updateCmd.GroupID = "maintenance"
+
+	rootCmd.AddCommand(updateCmd)
 }
 
 func main() {

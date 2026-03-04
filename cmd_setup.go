@@ -442,7 +442,7 @@ func printSetupSuccess(projectName string) {
 	fmt.Println(nextSteps())
 	fmt.Printf("    %scd %s%s\n", colorGreen, projectName, colorReset)
 	fmt.Printf("    %scp .env.example .env%s\n", colorGreen, colorReset)
-	fmt.Printf("    %sgrove serve%s\n", colorGreen, colorReset)
+	fmt.Printf("    %sgrove dev%s\n", colorGreen, colorReset)
 	fmt.Println()
 }
 

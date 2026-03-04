@@ -760,6 +760,41 @@ grove make:resource order_items # → OrderItem model, order_items table`
             code: `grove completion fish > ~/.config/fish/completions/grove.fish`
           }
         ]
+      },
+      {
+        id: 'cmd-update',
+        title: 'grove update',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Updates Grove-managed project dependencies to their latest versions and runs <code>go mod tidy</code> to clean up the module graph.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove update`
+          },
+          {
+            type: 'table',
+            head: ['Dependency', 'Action'],
+            rows: [
+              [
+                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest</a>',
+                'Updated to <code>@latest</code> via <code>go get</code>'
+              ],
+              [
+                'Module graph',
+                '<code>go mod tidy</code> is run automatically after updates'
+              ]
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: '<code>grove test</code> no longer updates gest automatically on every run. Use <code>grove update</code> whenever you want to pull in a newer version.'
+          }
+        ]
       }
     ]
   },
@@ -910,6 +945,11 @@ grove test -wc     # watch mode + coverage report`
             type: 'note',
             kind: 'tip',
             text: 'Coverage bar colours: <strong>green</strong> ≥ 80% · <strong>yellow</strong> ≥ 50% · <strong>red</strong> &lt; 50%. Pressing <kbd>Ctrl+C</kbd> in watch mode stops cleanly without printing a failure message.'
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: '<code>grove test</code> does not update gest automatically. Run <code>grove update</code> to pull the latest version of gest into your project.'
           }
         ]
       },

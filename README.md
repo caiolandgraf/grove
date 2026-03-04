@@ -14,7 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Release](https://img.shields.io/badge/release-v1.3.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v1.3.0)
+[![Release](https://img.shields.io/badge/release-v1.4.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v1.4.0)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
@@ -128,6 +128,14 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove migrate:status` | Show migration status |
 | `grove migrate:fresh` | Drop all tables and re-apply every migration ⚠️ |
 | `grove migrate:hash` | Rehash the `atlas.sum` file |
+
+### Maintenance
+
+| Command | Description |
+|---|---|
+| `grove update` | Update Grove project dependencies (gest) to their latest versions |
+
+---
 
 ### Shell Completion
 
@@ -276,6 +284,18 @@ All generator commands automatically singularize the entity name before generati
 | `books` | `Book` | `book.go` | `books` |
 | `BlogPost` | `BlogPost` | `blog_post.go` | `blog_posts` |
 | `order_items` | `OrderItem` | `order_item.go` | `order_items` |
+
+---
+
+## Updating dependencies
+
+Run `grove update` inside your project to update Grove-managed dependencies to their latest versions and tidy the module graph:
+
+```bash
+grove update
+```
+
+This updates [gest](https://github.com/caiolandgraf/gest) to the latest published version and runs `go mod tidy` automatically. `grove test` no longer does this on every run — use `grove update` whenever you want to pull in a newer version.
 
 ---
 

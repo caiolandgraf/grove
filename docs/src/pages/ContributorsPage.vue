@@ -197,7 +197,7 @@ const placeholders = computed(() =>
 
 const stats = [
   { value: '1', label: 'Contributor' },
-  { value: '1.3.0', label: 'Current version' },
+  { value: '1.4.0', label: 'Current version' },
   { value: 'MIT', label: 'License' },
   { value: '∞', label: 'Contributions welcome' }
 ]
