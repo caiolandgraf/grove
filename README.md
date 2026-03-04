@@ -161,23 +161,43 @@ my-api/
 │   └── api/
 │       └── main.go              # Entry point
 ├── internal/
-│   ├── app/                     # Shared singletons (DB, config)
+│   ├── app/                     # Shared singletons (DB, Redis, Session, Metrics)
+│   ├── config/                  # Infrastructure initializers (DB, Redis, OTel, etc.)
 │   ├── controllers/             # fuego route handlers
+│   ├── database/                # Generic GORM repository
 │   ├── dto/                     # Request and response types
-│   ├── middleware/              # HTTP middlewares
+│   ├── middleware/              # HTTP middlewares (CORS, session, observability)
 │   ├── models/                  # GORM models
 │   ├── routes/                  # Route registration
 │   └── tests/                   # gest spec files
-│       ├── main.go              # gest entrypoint (auto-created)
-│       └── post_spec.go         # example spec
+│       ├── main.go              # gest entrypoint (auto-created by grove make:test)
+│       └── user_spec.go         # Example spec
 ├── migrations/                  # Atlas SQL migrations
-├── .env.example                 # Committed env template
+├── infra/                       # Observability stack config (Prometheus, Grafana, Loki, Jaeger)
+├── .env.example                 # Committed environment template
 ├── atlas.hcl                    # Atlas configuration
-├── grove.toml                   # Grove configuration (optional)
-└── go.mod
+├── docker-compose.yml           # Full observability stack
+└── grove.toml                   # Grove dev server configuration
 ```
 
 The `internal/` boundary is intentional — it prevents external packages from importing your application internals, keeping the codebase clean as it grows.
+
+| Directory | Purpose |
+|---|---|
+| `cmd/api/` | Application entry point — wires singletons, routes and starts the server |
+| `internal/app/` | Shared singletons: DB, Redis, session store, metrics — initialized once at startup |
+| `internal/config/` | Infrastructure initializers for DB, Redis, OpenTelemetry and other external services |
+| `internal/controllers/` | fuego route handlers — one file per resource, OpenAPI inferred automatically |
+| `internal/database/` | Generic GORM repository (`Repository[T]`) used by all models |
+| `internal/dto/` | Request and response structs — decoupled from GORM models |
+| `internal/middleware/` | HTTP middlewares: CORS, session, observability, auth, etc. |
+| `internal/models/` | GORM models with typed repository accessors |
+| `internal/routes/` | Route registration — fuego typed routes wired to controllers |
+| `internal/tests/` | gest spec files — `main.go` is auto-created by `grove make:test` |
+| `migrations/` | Versioned Atlas SQL migration files + `atlas.sum` |
+| `infra/` | Observability stack configuration: Prometheus, Grafana, Loki, Jaeger |
+| `docker-compose.yml` | Spins up the full observability stack locally with a single command |
+| `grove.toml` | Optional Grove configuration — `[dev]` section for `grove dev` |
 
 ---
 

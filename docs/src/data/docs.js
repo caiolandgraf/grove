@@ -1062,36 +1062,89 @@ func init() {
 │   └── api/
 │       └── main.go              # Entry point — wires everything together
 ├── internal/
-│   ├── app/                     # Shared singletons (DB, config, logger)
-│   │   └── app.go
+│   ├── app/                     # Shared singletons (DB, Redis, Session, Metrics)
+│   ├── config/                  # Infrastructure initializers (DB, Redis, OTel, etc.)
 │   ├── controllers/             # fuego route handlers
-│   │   └── post-controller.go
-│   ├── database/                # Generic repository + DB init
-│   │   ├── database.go
-│   │   └── repository.go
+│   ├── database/                # Generic GORM repository
 │   ├── dto/                     # Request and response types
-│   │   └── post-dto.go
-│   ├── middleware/              # HTTP middlewares
-│   │   └── auth-middleware.go
+│   ├── middleware/              # HTTP middlewares (CORS, session, observability)
 │   ├── models/                  # GORM models
-│   │   └── post.go
 │   ├── routes/                  # Route registration
-│   │   └── routes.go
 │   └── tests/                   # gest spec files
-│       ├── main.go              # gest entrypoint (auto-created by make:test)
-│       └── post_spec.go
+│       ├── main.go              # gest entrypoint (auto-created by grove make:test)
+│       └── user_spec.go         # Example spec
 ├── migrations/                  # Atlas SQL migrations
-│   ├── 20240101120000_create_posts_table.sql
-│   └── atlas.sum
-├── .env                         # Local secrets (git-ignored)
-├── .env.example                 # Committed env template
+├── infra/                       # Observability stack config (Prometheus, Grafana, Loki, Jaeger)
+├── .env.example                 # Committed environment template
 ├── atlas.hcl                    # Atlas configuration
-├── go.mod
-└── go.sum`
+├── docker-compose.yml           # Full observability stack
+└── grove.toml                   # Grove dev server configuration`
           },
           {
             type: 'paragraph',
             text: 'The <code>internal/</code> package boundary is intentional — it prevents external packages from importing your application internals, keeping the codebase clean as it grows.'
+          },
+          {
+            type: 'table',
+            head: ['Directory', 'Purpose'],
+            rows: [
+              [
+                '<code>cmd/api/</code>',
+                'Application entry point — wires singletons, routes and starts the server'
+              ],
+              [
+                '<code>internal/app/</code>',
+                'Shared singletons: DB, Redis, session store, metrics — initialized once at startup'
+              ],
+              [
+                '<code>internal/config/</code>',
+                'Infrastructure initializers for DB, Redis, OpenTelemetry and other external services'
+              ],
+              [
+                '<code>internal/controllers/</code>',
+                'fuego route handlers — one file per resource, OpenAPI inferred automatically'
+              ],
+              [
+                '<code>internal/database/</code>',
+                'Generic GORM repository (<code>Repository[T]</code>) used by all models'
+              ],
+              [
+                '<code>internal/dto/</code>',
+                'Request and response structs — decoupled from GORM models'
+              ],
+              [
+                '<code>internal/middleware/</code>',
+                'HTTP middlewares: CORS, session, observability, auth, etc.'
+              ],
+              [
+                '<code>internal/models/</code>',
+                'GORM models with typed repository accessors'
+              ],
+              [
+                '<code>internal/routes/</code>',
+                'Route registration — fuego typed routes wired to controllers'
+              ],
+              [
+                '<code>internal/tests/</code>',
+                'gest spec files — <code>main.go</code> is auto-created by <code>grove make:test</code>'
+              ],
+              [
+                '<code>migrations/</code>',
+                'Versioned Atlas SQL migration files + <code>atlas.sum</code>'
+              ],
+              [
+                '<code>infra/</code>',
+                'Observability stack configuration: Prometheus, Grafana, Loki, Jaeger'
+              ],
+              [
+                '<code>docker-compose.yml</code>',
+                'Spins up the full observability stack locally with a single command'
+              ],
+              [
+                '<code>grove.toml</code>',
+                'Optional Grove configuration — <code>[dev]</code> section for <code>grove dev</code>'
+              ]
+            ]
           }
         ]
       },
