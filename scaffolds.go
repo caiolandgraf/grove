@@ -193,9 +193,11 @@ func scaffoldTestSpec(name string) error {
 	data := struct {
 		Name    string
 		Package string
+		Label   string
 	}{
 		Name:    name,
 		Package: pkg,
+		Label:   toWords(name),
 	}
 
 	content, err := renderStub(testSpecStub, "test_spec", data)

@@ -7,7 +7,7 @@ import (
 )
 
 func Test{{.Name}}(t *testing.T) {
-	s := gest.Describe("{{.Name}}")
+	s := gest.Describe("{{.Label}}")
 
 	s.It("should work", func(t *gest.T) {
 		// TODO: write your test here

@@ -464,6 +464,70 @@ func toKebabCase(s string) string {
 	return strings.ReplaceAll(toSnakeCase(s), "_", "-")
 }
 
+// toWords converts a PascalCase or snake_case name to space-separated words
+// with each word title-cased. Consecutive uppercase sequences are kept as one
+// word so acronyms are preserved. Used for gest.Describe() labels.
+//
+//	"BookCool"        → "Book Cool"
+//	"AuthService"     → "Auth Service"
+//	"order_items"     → "Order Items"
+//	"ISBN"            → "ISBN"
+//	"parseJSON"       → "Parse JSON"
+//	"UserAuthService" → "User Auth Service"
+func toWords(s string) string {
+	// First split on underscores (handles snake_case input).
+	// Then split each segment on PascalCase boundaries, keeping consecutive
+	// uppercase runs (acronyms) together.
+	var words []string
+	for _, seg := range strings.Split(s, "_") {
+		if seg == "" {
+			continue
+		}
+		runes := []rune(seg)
+		start := 0
+		for i := 1; i < len(runes); i++ {
+			curr := runes[i]
+			prev := runes[i-1]
+			// Start a new word when transitioning from lower to upper,
+			// or from a run of uppers into a lower (e.g. "JSONParser" → "JSON", "Parser").
+			splitHere := false
+			if unicode.IsUpper(curr) && unicode.IsLower(prev) {
+				splitHere = true
+			} else if unicode.IsLower(curr) && unicode.IsUpper(prev) && i-start > 1 {
+				// back up one so the last upper joins the new word
+				words = append(words, string(runes[start:i-1]))
+				start = i - 1
+				continue
+			}
+			if splitHere {
+				words = append(words, string(runes[start:i]))
+				start = i
+			}
+		}
+		words = append(words, string(runes[start:]))
+	}
+	// Title-case each word.
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		r := []rune(w)
+		// If the entire word is uppercase (acronym), leave it as-is.
+		allUpper := true
+		for _, c := range r {
+			if unicode.IsLower(c) {
+				allUpper = false
+				break
+			}
+		}
+		if !allUpper {
+			r[0] = unicode.ToUpper(r[0])
+			words[i] = string(r)
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 // toLowerFirst returns the string with the first rune lowercased.
 func toLowerFirst(s string) string {
 	if s == "" {
