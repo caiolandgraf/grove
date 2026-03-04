@@ -84,6 +84,9 @@ func (p *Process) Restart(bin string) error {
 	// no risk of a "wait: process already finished" error.
 	go func() {
 		_ = cmd.Wait()
+		// Flush any buffered output (e.g. a panic dump that ended at EOF
+		// without a trailing non-stack line) before closing the channel.
+		appOut.Flush()
 		close(waitCh)
 	}()
 

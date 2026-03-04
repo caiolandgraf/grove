@@ -449,6 +449,22 @@ func (aw *appOutputWriter) resetSession() {
 	aw.hintSeen = map[string]bool{}
 }
 
+// Flush flushes any buffered output that has not yet been written.
+// It must be called when the child process exits so that a panic dump
+// that ends at EOF (without a trailing non-stack line) is not silently
+// discarded.
+func (aw *appOutputWriter) Flush() {
+	// Flush any partial line left in the byte buffer (no trailing newline).
+	if len(aw.buf) > 0 {
+		aw.writeLine(string(aw.buf))
+		aw.buf = nil
+	}
+	// If we were accumulating a panic dump, print it now.
+	if aw.inPanic {
+		aw.flushPanic()
+	}
+}
+
 func (aw *appOutputWriter) Write(p []byte) (n int, err error) {
 	aw.buf = append(aw.buf, p...)
 
