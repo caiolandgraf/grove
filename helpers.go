@@ -464,16 +464,16 @@ func toKebabCase(s string) string {
 	return strings.ReplaceAll(toSnakeCase(s), "_", "-")
 }
 
-// toWords converts a PascalCase or snake_case name to space-separated words
-// with each word title-cased. Consecutive uppercase sequences are kept as one
-// word so acronyms are preserved. Used for gest.Describe() labels.
+// toWords converts a PascalCase or snake_case name to lowercase space-separated
+// words. Consecutive uppercase sequences are kept as one word so acronyms are
+// lowercased as a unit. Used for gest.Describe() labels.
 //
-//	"BookCool"        → "Book Cool"
-//	"AuthService"     → "Auth Service"
-//	"order_items"     → "Order Items"
-//	"ISBN"            → "ISBN"
-//	"parseJSON"       → "Parse JSON"
-//	"UserAuthService" → "User Auth Service"
+//	"BookCool"        → "book cool"
+//	"AuthService"     → "auth service"
+//	"order_items"     → "order items"
+//	"ISBN"            → "isbn"
+//	"parseJSON"       → "parse json"
+//	"UserAuthService" → "user auth service"
 func toWords(s string) string {
 	// First split on underscores (handles snake_case input).
 	// Then split each segment on PascalCase boundaries, keeping consecutive
@@ -506,24 +506,9 @@ func toWords(s string) string {
 		}
 		words = append(words, string(runes[start:]))
 	}
-	// Title-case each word.
+	// Lowercase every word.
 	for i, w := range words {
-		if w == "" {
-			continue
-		}
-		r := []rune(w)
-		// If the entire word is uppercase (acronym), leave it as-is.
-		allUpper := true
-		for _, c := range r {
-			if unicode.IsLower(c) {
-				allUpper = false
-				break
-			}
-		}
-		if !allUpper {
-			r[0] = unicode.ToUpper(r[0])
-			words[i] = string(r)
-		}
+		words[i] = strings.ToLower(w)
 	}
 	return strings.Join(words, " ")
 }
