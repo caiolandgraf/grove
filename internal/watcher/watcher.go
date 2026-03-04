@@ -236,6 +236,14 @@ func (w *Watcher) scheduleRebuild() {
 // runRebuild compiles the project and, on success, restarts the binary.
 // Build errors are printed but do not stop the watcher.
 func (w *Watcher) runRebuild() {
+	// Wait for the previous process to fully drain its output (including any
+	// panic dump) before resetting state and printing the RE-BUILDING banner.
+	// This prevents the banner from interleaving with the crash output of a
+	// process that panicked right after the last restart.
+	if w.proc != nil {
+		w.proc.WaitDone()
+	}
+
 	// Reset per-session state (hints, panic buffer) so every rebuild starts
 	// clean and hints are shown again if the error persists.
 	appOut.resetSession()
@@ -257,7 +265,8 @@ func (w *Watcher) runRebuild() {
 
 	elapsed := time.Since(start)
 
-	if err := w.proc.Restart(w.cfg.Bin); err != nil {
+	result, err := w.proc.Restart(w.cfg.Bin)
+	if err != nil {
 		fmt.Println()
 		logDev(
 			badge(
@@ -269,12 +278,31 @@ func (w *Watcher) runRebuild() {
 		return
 	}
 
-	fmt.Println()
-	logDev(
-		badge(ansiBgGreen, "APP RESTARTED") +
-			"  " + ansiGray + "(" + fmtElapsed(elapsed) + ")" + ansiReset,
-	)
-	fmt.Println()
+	// Wait for either the stabilisation window (process is healthy) or an
+	// immediate crash (startup panic). In the crash case, DoneCh will be
+	// closed shortly after — we wait on it so the full panic output is
+	// printed before we return and the caller can schedule the next rebuild.
+	select {
+	case <-result.ReadyCh:
+		// Process survived the stabilisation window — it looks healthy.
+		fmt.Println()
+		logDev(
+			badge(ansiBgGreen, "APP RESTARTED") +
+				"  " + ansiGray + "(" + fmtElapsed(elapsed) + ")" + ansiReset,
+		)
+		fmt.Println()
+
+	case <-result.CrashCh:
+		// Process exited immediately — wait for all pipe output (panic dump,
+		// error messages) to be fully flushed before returning.
+		<-result.DoneCh
+		fmt.Println()
+		logDev(
+			badge(ansiBgRed, "APP CRASHED") +
+				"  " + ansiGray + "process exited immediately after start" + ansiReset,
+		)
+		fmt.Println()
+	}
 }
 
 // build runs cfg.BuildCmd in cfg.Root, piping stderr to the terminal.

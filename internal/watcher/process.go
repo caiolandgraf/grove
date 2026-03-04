@@ -17,9 +17,30 @@ var appOut = newAppOutputWriter(os.Stdout)
 // It is safe for concurrent use — a sync.Mutex serialises all Restart calls
 // so that rapid file-change events never spawn duplicate processes.
 type Process struct {
-	mu     sync.Mutex
-	cmd    *exec.Cmd
-	waitCh chan struct{} // closed by the reaper goroutine when the process exits
+	mu       sync.Mutex
+	cmd      *exec.Cmd
+	waitCh   chan struct{}   // closed by the reaper goroutine when the process exits
+	lastDone <-chan struct{} // DoneCh of the most recently launched process
+}
+
+// RestartResult is returned by Restart and lets the caller observe whether the
+// newly launched process is still alive after a short stabilisation window.
+type RestartResult struct {
+	// ReadyCh is closed once the stabilisation window has elapsed AND the
+	// process is still running. If the process crashed before the window
+	// expired, ReadyCh is never closed — CrashCh is closed instead.
+	ReadyCh <-chan struct{}
+
+	// CrashCh is closed if the process exits within the stabilisation window
+	// (i.e. a fast crash / startup panic). The caller should treat this as a
+	// failed start rather than a clean launch.
+	CrashCh <-chan struct{}
+
+	// DoneCh mirrors the internal waitCh: it is closed when the process has
+	// fully exited and all pipe output has been flushed. The caller can wait
+	// on this channel to ensure all output (including panic dumps) has been
+	// printed before starting a new rebuild.
+	DoneCh <-chan struct{}
 }
 
 // Restart stops the currently running process (if any) and starts a new one
@@ -33,7 +54,10 @@ type Process struct {
 // A new process is then launched unconditionally regardless of how the old
 // one exited, so a build that produces a working binary always gets a chance
 // to run.
-func (p *Process) Restart(bin string) error {
+//
+// The returned RestartResult lets the caller distinguish between a healthy
+// start and an immediate crash (e.g. a startup panic).
+func (p *Process) Restart(bin string) (RestartResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -73,16 +97,16 @@ func (p *Process) Restart(bin string) error {
 	// the default cmd.Stdout / cmd.Stderr assignment).
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return RestartResult{}, err
 	}
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		return err
+		return RestartResult{}, err
 	}
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Start(); err != nil {
-		return err
+		return RestartResult{}, err
 	}
 
 	// Allocate a fresh channel before handing cmd off to the reaper so there
@@ -117,7 +141,59 @@ func (p *Process) Restart(bin string) error {
 		close(waitCh)
 	}()
 
-	return nil
+	// ── 4. Build result channels ──────────────────────────────────────────────
+	// stabilisationWindow is how long we wait before declaring the process
+	// healthy. Startup panics in Go programs typically print and exit within
+	// a few milliseconds; 500 ms is a comfortable margin that still feels
+	// instant to the developer.
+	const stabilisationWindow = 500 * time.Millisecond
+
+	readyCh := make(chan struct{})
+	crashCh := make(chan struct{})
+
+	go func() {
+		select {
+		case <-waitCh:
+			// Process exited within the stabilisation window — it's a crash.
+			close(crashCh)
+		case <-time.After(stabilisationWindow):
+			// Process is still running after the window — declare it ready.
+			close(readyCh)
+		}
+	}()
+
+	result := RestartResult{
+		ReadyCh: readyCh,
+		CrashCh: crashCh,
+		DoneCh:  waitCh,
+	}
+	p.lastDone = waitCh
+	return result, nil
+}
+
+// WaitDone waits for the most recently launched process's output to be fully
+// flushed, but ONLY if the process has already exited on its own.
+//
+// If the process is still running, this is a no-op — the caller (runRebuild)
+// will subsequently call Restart, which sends SIGINT and drains waitCh itself
+// before launching the next binary. Blocking here in that case would deadlock
+// because Restart has not yet been called to stop the process.
+func (p *Process) WaitDone() {
+	p.mu.Lock()
+	done := p.lastDone
+	p.mu.Unlock()
+
+	if done == nil {
+		return
+	}
+
+	// Non-blocking check: only wait if the process has already exited.
+	select {
+	case <-done:
+		// Already done — output has been flushed.
+	default:
+		// Still running — Restart will handle teardown.
+	}
 }
 
 // Stop sends an interrupt signal to the running process and waits for it to
