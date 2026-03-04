@@ -116,9 +116,14 @@ grove dev:air`
                 'Migration generation and application'
               ],
               [
-                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest</a>',
-                'latest',
-                'Jest-inspired testing framework used by <code>grove test</code>'
+                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest library</a>',
+                'v2+',
+                "Jest-inspired testing library — added to your project's <code>go.mod</code> automatically by <code>grove make:test</code>"
+              ],
+              [
+                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest CLI</a> (optional)',
+                'v2+',
+                'Renders beautiful Jest-style output. Install with <code>go install github.com/caiolandgraf/gest/v2/cmd/gest@latest</code>. <code>grove test</code> falls back to <code>go test -v</code> when absent.'
               ],
               [
                 '<a href="https://github.com/air-verse/air" target="_blank">air</a> (optional)',
@@ -291,7 +296,7 @@ debounce_ms = 50`
               [
                 '<code>exclude</code>',
                 '<code>[".grove", "vendor", "node_modules", "tests"]</code>',
-                'Directory names to ignore (spec files ending in <code>_spec.go</code> are always excluded)'
+                'Directory names to ignore (the <code>internal/tests/</code> directory is always excluded so test saves never trigger a rebuild)'
               ],
               [
                 '<code>extensions</code>',
@@ -308,7 +313,7 @@ debounce_ms = 50`
           {
             type: 'note',
             kind: 'tip',
-            text: 'Newly created subdirectories are picked up automatically at runtime — no restart of <code>grove dev</code> required. Spec files (<code>*_spec.go</code>) and the <code>tests</code> directory are always excluded so a test save never triggers an application rebuild.'
+            text: 'Newly created subdirectories are picked up automatically at runtime — no restart of <code>grove dev</code> required. The <code>internal/tests/</code> directory is always excluded so a test save never triggers an application rebuild.'
           }
         ]
       },
@@ -886,8 +891,12 @@ grove make:resource order_items # → OrderItem model, order_items table`
             head: ['Dependency', 'Action'],
             rows: [
               [
-                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest</a>',
-                'Updated to <code>@latest</code> via <code>go get</code>'
+                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest library</a>',
+                'Updated to <code>@latest</code> in <code>go.mod</code> via <code>go get</code>'
+              ],
+              [
+                '<a href="https://github.com/caiolandgraf/gest" target="_blank">gest CLI binary</a>',
+                'Installed globally to <code>$GOPATH/bin</code> via <code>go install</code>'
               ],
               [
                 'Module graph',
@@ -898,7 +907,7 @@ grove make:resource order_items # → OrderItem model, order_items table`
           {
             type: 'note',
             kind: 'info',
-            text: '<code>grove test</code> no longer updates gest automatically on every run. Use <code>grove update</code> whenever you want to pull in a newer version.'
+            text: '<code>grove test</code> does not update gest automatically on every run. Use <code>grove update</code> whenever you want to pull in a newer version of both the library and the CLI.'
           }
         ]
       }
@@ -918,11 +927,11 @@ grove make:resource order_items # → OrderItem model, order_items table`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Grove uses <a href="https://github.com/caiolandgraf/gest" target="_blank">gest</a> as its testing framework — a Jest-inspired library for Go with beautiful colored output, descriptive failure messages and a fluent assertion API. Zero external dependencies, zero config files.'
+            text: 'Grove uses <a href="https://github.com/caiolandgraf/gest" target="_blank">gest v2</a> as its testing framework — a Jest-inspired library for Go that runs on top of the native <code>go test</code> engine. You get beautiful colored output, descriptive failure messages and a fluent assertion API, while keeping full IDE support, caching, <code>-race</code> detection and real coverage for free.'
           },
           {
             type: 'paragraph',
-            text: 'All spec files live in <code>internal/tests/</code>. Each file self-registers its suite via <code>init()</code> and the single <code>main.go</code> entrypoint calls <code>gest.RunRegistered()</code>. Grove manages both files for you.'
+            text: 'All test files live in <code>internal/tests/</code> as standard <code>*_test.go</code> files. Each file has a <code>func Test&lt;Name&gt;(t *testing.T)</code> entry point that calls <code>s.Run(t)</code> — no separate <code>main.go</code>, no <code>init()</code> registration.'
           },
           {
             type: 'code',
@@ -930,14 +939,34 @@ grove make:resource order_items # → OrderItem model, order_items table`
             label: 'project layout',
             code: `internal/
 └── tests/
-    ├── main.go            # gest entrypoint — auto-created by make:test
-    ├── post_spec.go       # grove make:test Post
-    └── user_service_spec.go`
+    ├── post_test.go            # grove make:test Post
+    └── user_service_test.go    # grove make:test UserService`
           },
           {
             type: 'note',
             kind: 'info',
-            text: 'gest uses <code>_spec.go</code> instead of <code>_test.go</code> because the Go toolchain reserves <code>_test.go</code> for <code>go test</code>. gest runs via <code>go run</code>, so any other suffix works fine.'
+            text: 'gest v2 uses standard <code>*_test.go</code> files — the same convention as <code>go test</code>. You can run <code>go test ./internal/tests/...</code> at any time without the gest CLI.'
+          }
+        ]
+      },
+      {
+        id: 'testing-installation',
+        title: 'Installing the gest CLI',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The gest CLI renders beautiful Jest-style output by wrapping <code>go test -v -json</code>. It is optional — <code>grove test</code> falls back to plain <code>go test -v</code> automatically when it is not installed.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `go install github.com/caiolandgraf/gest/v2/cmd/gest@latest`
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'Run <code>grove update</code> at any time to update both the gest library in your <code>go.mod</code> and the global gest CLI binary to their latest versions.'
           }
         ]
       },
@@ -947,7 +976,7 @@ grove make:resource order_items # → OrderItem model, order_items table`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new gest spec file in <code>internal/tests/</code>. If <code>internal/tests/main.go</code> does not exist yet it is created automatically as the gest entrypoint — you never have to write it by hand. If the spec file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
+            text: "Scaffolds a new gest v2 test file in <code>internal/tests/</code>. The generated file is a standard <code>*_test.go</code> file with a <code>func Test&lt;Name&gt;(t *testing.T)</code> entry point. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly. On the first call, gest is added to the project's <code>go.mod</code> automatically via <code>go get</code>."
           },
           {
             type: 'code',
@@ -965,35 +994,21 @@ grove make:test order_calculations   # → OrderCalculations`
           },
           {
             type: 'paragraph',
-            text: 'The first time you run <code>make:test</code> grove creates the entrypoint and the spec:'
+            text: 'The generated file follows the gest v2 convention:'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/tests/main.go (auto-created)',
-            code: `package main
+            label: 'internal/tests/user_test.go (generated)',
+            code: `package myapp
 
 import (
-	"os"
+	"testing"
 
-	"github.com/caiolandgraf/gest/gest"
+	"github.com/caiolandgraf/gest/v2/gest"
 )
 
-func main() {
-	if !gest.RunRegistered() {
-		os.Exit(1)
-	}
-}`
-          },
-          {
-            type: 'code',
-            lang: 'go',
-            label: 'internal/tests/user_spec.go (generated)',
-            code: `package main
-
-import "github.com/caiolandgraf/gest/gest"
-
-func init() {
+func TestUser(t *testing.T) {
 	s := gest.Describe("User")
 
 	s.It("should work", func(t *gest.T) {
@@ -1001,7 +1016,7 @@ func init() {
 		t.Expect(true).ToBeTrue()
 	})
 
-	gest.Register(s)
+	s.Run(t)
 }`
           }
         ]
@@ -1012,13 +1027,13 @@ func init() {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Compiles and runs every <code>*_spec.go</code> file in <code>internal/tests/</code>. Pass <code>-c</code> to display a per-suite coverage report after the run. Pass <code>-w</code> to enter watch mode so specs re-run automatically on file changes — no Air or external tools required, watch is built directly into gest. Combine both as <code>-wc</code>.'
+            text: 'Runs every <code>*_test.go</code> file in <code>internal/tests/</code> using the gest CLI for beautiful Jest-style output. If the gest CLI is not installed, grove falls back to <code>go test -v</code> automatically. Pass <code>-c</code> for a per-suite coverage report. Pass <code>-w</code> to enter watch mode. Combine both as <code>-wc</code>.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove test [-c|-w]`
+            code: `grove test [-c] [-w]`
           },
           {
             type: 'table',
@@ -1030,7 +1045,7 @@ func init() {
               ],
               [
                 '<code>-w</code>, <code>--watch</code>',
-                'Watch mode: re-run specs on file changes (no external tools required)'
+                'Watch mode: re-run tests on file changes. Delegates to <code>gest --watch</code> when the CLI is installed; falls back to a polling loop otherwise.'
               ],
               [
                 '<code>-wc</code>',
@@ -1042,10 +1057,13 @@ func init() {
             type: 'code',
             lang: 'bash',
             label: 'examples',
-            code: `grove test         # run all specs
-grove test -c      # run all specs + coverage report
-grove test -w      # watch mode — re-run specs on every save
-grove test -wc     # watch mode + coverage report`
+            code: `grove test         # run all tests
+grove test -c      # run all tests + coverage report
+grove test -w      # watch mode — re-run tests on every save
+grove test -wc     # watch mode + coverage report
+
+# you can also use go test directly at any time:
+go test ./internal/tests/...`
           },
           {
             type: 'note',
@@ -1055,32 +1073,32 @@ grove test -wc     # watch mode + coverage report`
           {
             type: 'note',
             kind: 'info',
-            text: '<code>grove test</code> does not update gest automatically. Run <code>grove update</code> to pull the latest version of gest into your project.'
+            text: '<code>grove test</code> does not update gest automatically. Run <code>grove update</code> to pull the latest version of both the gest library and the gest CLI.'
           }
         ]
       },
       {
-        id: 'testing-writing-specs',
-        title: 'Writing Specs',
+        id: 'testing-writing-tests',
+        title: 'Writing Tests',
         blocks: [
           {
             type: 'paragraph',
-            text: 'Each spec file calls <code>gest.Describe()</code> to create a suite, adds cases with <code>s.It()</code>, then registers with <code>gest.Register()</code>. The <code>init()</code> function ensures self-registration at startup.'
+            text: 'Each test file creates a suite with <code>gest.Describe()</code>, adds cases with <code>s.It()</code>, then hands off to <code>go test</code> via <code>s.Run(t)</code>. The wrapping <code>func Test&lt;Name&gt;(t *testing.T)</code> is a standard Go test function — IDEs, <code>go test</code> and the gest CLI all discover it automatically.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/tests/post_spec.go',
-            code: `package main
+            label: 'internal/tests/post_test.go',
+            code: `package myapp
 
 import (
-	"testing/quick"
+	"testing"
 
-	"github.com/caiolandgraf/gest/gest"
+	"github.com/caiolandgraf/gest/v2/gest"
 	"your/module/internal/models"
 )
 
-func init() {
+func TestPost(t *testing.T) {
 	s := gest.Describe("Post")
 
 	s.It("TableName should return 'posts'", func(t *gest.T) {
@@ -1097,7 +1115,7 @@ func init() {
 		t.Expect(post.Published).ToBeFalse()
 	})
 
-	gest.Register(s)
+	s.Run(t)
 }`
           },
           {
@@ -1176,9 +1194,8 @@ func init() {
 │   ├── middleware/              # HTTP middlewares (CORS, session, observability)
 │   ├── models/                  # GORM models
 │   ├── routes/                  # Route registration
-│   └── tests/                   # gest spec files
-│       ├── main.go              # gest entrypoint (auto-created by grove make:test)
-│       └── user_spec.go         # Example spec
+│   └── tests/                   # gest v2 test files
+│       └── user_test.go         # Example test (generated by grove make:test)
 ├── migrations/                  # Atlas SQL migrations
 ├── infra/                       # Observability stack config (Prometheus, Grafana, Loki, Jaeger)
 ├── .env.example                 # Committed environment template

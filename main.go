@@ -58,10 +58,10 @@ func buildBanner() string {
 
 	testing := "\n" +
 		"  " + colorBold + colorGray + "TESTING" + colorReset + "\n" +
-		"    grove " + colorGreen + "make:test" + colorReset + "        <Name>   Scaffold a new gest spec file\n" +
-		"    grove " + colorBlue + "test" + colorReset + "              Run all gest specs in internal/tests\n" +
-		"    grove " + colorBlue + "test -c" + colorReset + "           Run specs + display coverage report\n" +
-		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run specs on every save (no external tools)\n" +
+		"    grove " + colorGreen + "make:test" + colorReset + "        <Name>   Scaffold a new gest v2 test file in internal/tests/\n" +
+		"    grove " + colorBlue + "test" + colorReset + "              Run all tests (gest CLI if installed, else go test -v)\n" +
+		"    grove " + colorBlue + "test -c" + colorReset + "           Run tests + display per-suite coverage report\n" +
+		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run tests on every save\n" +
 		"    grove " + colorBlue + "test -wc" + colorReset + "          Watch mode + coverage report\n"
 
 	setup := "\n" +
@@ -100,7 +100,7 @@ func init() {
 	makeMiddlewareCmd.GroupID = "generators"
 	makeMigrationCmd.GroupID = "generators"
 	makeResourceCmd.GroupID = "generators"
-	makeTestCmd.GroupID = "generators"
+	makeTestCmd.GroupID = "testing"
 
 	rootCmd.AddCommand(makeModelCmd)
 	rootCmd.AddCommand(makeControllerCmd)

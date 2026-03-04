@@ -11,9 +11,12 @@ import (
 
 // gestModule is the fully-qualified module path used by go get to install or
 // update gest to the latest published version.
-const gestModule = "github.com/caiolandgraf/gest@latest"
+const gestModule = "github.com/caiolandgraf/gest/v2@latest"
 
-// ensureGest runs "go get github.com/caiolandgraf/gest@latest" in the current
+// gestCLIModule is the module path for the gest CLI binary.
+const gestCLIModule = "github.com/caiolandgraf/gest/v2/cmd/gest@latest"
+
+// ensureGest runs "go get github.com/caiolandgraf/gest/v2@latest" in the current
 // working directory, adding or upgrading gest in the project's go.mod.
 // Output from the command is forwarded with grove's standard indentation.
 func ensureGest() error {
@@ -169,81 +172,30 @@ func scaffoldMiddleware(name string) error {
 }
 
 // ──────────────────────────────────────────────
-// Test main entrypoint
-// ──────────────────────────────────────────────
-
-// scaffoldTestMain creates internal/tests/main.go (the gest entrypoint) if it
-// does not already exist. It is called automatically by make:test.
-// On first creation it also runs "go get" to add gest to the project's go.mod.
-func scaffoldTestMain() error {
-	destPath := filepath.Join("internal", "tests", "main.go")
-
-	if fileExists(destPath) {
-		return nil // silently skip — user already has a main
-	}
-
-	module := getModuleName()
-
-	data := struct {
-		Module string
-	}{
-		Module: module,
-	}
-
-	content, err := renderStub(testMainStub, "test_main", data)
-	if err != nil {
-		return err
-	}
-
-	if err := writeFile(destPath, content); err != nil {
-		return err
-	}
-
-	printCreated("Test entrypoint", "main", destPath)
-
-	// Install gest into the project's go.mod the first time the entrypoint is
-	// created so that "go run ./internal/tests" works immediately.
-	fmt.Println()
-	fmt.Printf(
-		"  %sInstalling gest%s %s\n",
-		colorGray, colorReset,
-		gray("(go get "+gestModule+")"),
-	)
-	fmt.Println()
-
-	if err := ensureGest(); err != nil {
-		fmt.Println(warn("Failed to install gest automatically."))
-		fmt.Printf(
-			"  %sRun manually: %s\n",
-			colorGray,
-			colorGreen+"go get "+gestModule+colorReset,
-		)
-	}
-
-	return nil
-}
-
-// ──────────────────────────────────────────────
 // Test spec
 // ──────────────────────────────────────────────
 
+// scaffoldTestSpec creates internal/tests/<snake>_test.go for gest v2.
+// On the first call it also runs "go get" to add gest to the project's go.mod.
 func scaffoldTestSpec(name string) error {
 	snake := toSnakeCase(name)
-	destPath := filepath.Join("internal", "tests", snake+"_spec.go")
+	destPath := filepath.Join("internal", "tests", snake+"_test.go")
+
+	isFirstSpec := !dirHasTestFiles(filepath.Join("internal", "tests"))
 
 	if fileExists(destPath) {
-		printSkipped("Spec", name, destPath)
+		printSkipped("Test", name, destPath)
 		return nil
 	}
 
-	module := getModuleName()
+	pkg := getPackageName()
 
 	data := struct {
-		Name   string
-		Module string
+		Name    string
+		Package string
 	}{
-		Name:   name,
-		Module: module,
+		Name:    name,
+		Package: pkg,
 	}
 
 	content, err := renderStub(testSpecStub, "test_spec", data)
@@ -255,8 +207,45 @@ func scaffoldTestSpec(name string) error {
 		return err
 	}
 
-	printCreated("Spec", name, destPath)
+	printCreated("Test", name, destPath)
+
+	if isFirstSpec {
+		// Install gest into the project's go.mod the first time a test file is
+		// created so that "go test ./..." works immediately.
+		fmt.Println()
+		fmt.Printf(
+			"  %sInstalling gest%s %s\n",
+			colorGray, colorReset,
+			gray("(go get "+gestModule+")"),
+		)
+		fmt.Println()
+
+		if err := ensureGest(); err != nil {
+			fmt.Println(warn("Failed to install gest automatically."))
+			fmt.Printf(
+				"  %sRun manually: %s\n",
+				colorGray,
+				colorGreen+"go get "+gestModule+colorReset,
+			)
+		}
+	}
+
 	return nil
+}
+
+// dirHasTestFiles reports whether dir contains at least one *_test.go file.
+func dirHasTestFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && len(e.Name()) > 8 &&
+			e.Name()[len(e.Name())-8:] == "_test.go" {
+			return true
+		}
+	}
+	return false
 }
 
 // ──────────────────────────────────────────────
@@ -289,4 +278,11 @@ func writeFile(path string, content []byte) error {
 	}
 
 	return nil
+}
+
+// getPackageName returns the Go package name to use for generated test files.
+// internal/tests/ is an isolated package so "tests" is always valid and
+// predictable regardless of the project's module name.
+func getPackageName() string {
+	return "tests"
 }

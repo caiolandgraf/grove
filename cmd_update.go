@@ -15,7 +15,8 @@ var updateCmd = &cobra.Command{
 latest versions and runs ` + colorCyan + `go mod tidy` + colorReset + ` to clean up the module graph.
 
 Currently updates:
-  ` + colorCyan + `github.com/caiolandgraf/gest` + colorReset + `  — the testing framework used by ` + colorGreen + `grove test` + colorReset + `
+  ` + colorCyan + `github.com/caiolandgraf/gest/v2` + colorReset + `           — the testing library used by ` + colorGreen + `grove test` + colorReset + `
+  ` + colorCyan + `github.com/caiolandgraf/gest/v2/cmd/gest` + colorReset + ` — the gest CLI binary (beautiful output)
 
 ` + colorGray + `Examples:` + colorReset + `
   grove update`,
@@ -25,9 +26,9 @@ Currently updates:
 func runUpdate(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 
-	// ── gest ──────────────────────────────────────────────────────────────────
+	// ── gest library (go.mod) ─────────────────────────────────────────────────
 	fmt.Printf(
-		"  %sUpdating gest%s %s\n",
+		"  %sUpdating gest library%s %s\n",
 		colorGray, colorReset,
 		gray("(go get "+gestModule+")"),
 	)
@@ -48,8 +49,38 @@ func runUpdate(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("go get %s: %w", gestModule, err)
 	}
 
-	fmt.Println(success("gest updated"))
+	fmt.Println(success("gest library updated"))
 	fmt.Println()
+
+	// ── gest CLI (global binary) ──────────────────────────────────────────────
+	fmt.Printf(
+		"  %sUpdating gest CLI%s %s\n",
+		colorGray, colorReset,
+		gray("(go install "+gestCLIModule+")"),
+	)
+	fmt.Println()
+
+	gestCLICmd := exec.Command("go", "install", gestCLIModule)
+	gestCLICmd.Stdout = newIndentWriter(os.Stdout, "    ")
+	gestCLICmd.Stderr = newIndentWriter(os.Stderr, "    ")
+
+	if err := gestCLICmd.Run(); err != nil {
+		fmt.Println(
+			warn(
+				"Failed to install gest CLI — beautiful output will not be available.",
+			),
+		)
+		fmt.Printf(
+			"  %sRun manually: %s\n",
+			colorGray,
+			colorGreen+"go install "+gestCLIModule+colorReset,
+		)
+		fmt.Println()
+		// Non-fatal: the CLI is optional, grove test falls back to go test.
+	} else {
+		fmt.Println(success("gest CLI updated"))
+		fmt.Println()
+	}
 
 	// ── go mod tidy ───────────────────────────────────────────────────────────
 	fmt.Printf(

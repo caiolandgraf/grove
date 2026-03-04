@@ -1,22 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 )
-
-// testBin is the path to the compiled test binary.
-const testBin = ".grove/tmp/tests"
 
 // ──────────────────────────────────────────────
 // make:test
@@ -24,13 +18,17 @@ const testBin = ".grove/tmp/tests"
 
 var makeTestCmd = &cobra.Command{
 	Use:   "make:test <Name>",
-	Short: "Scaffold a new gest spec file",
+	Short: "Scaffold a new gest test file",
 	Long: bold(
 		"make:test",
-	) + ` scaffolds a new gest spec file in ` + colorCyan + `internal/tests/` + colorReset + `.
+	) + ` scaffolds a new gest test file in ` + colorCyan + `internal/tests/` + colorReset + `.
 
-If ` + colorCyan + `internal/tests/main.go` + colorReset + ` does not exist it will be created
-automatically as the gest entrypoint.
+The generated file follows the ` + colorCyan + `gest v2` + colorReset + ` convention: a standard
+` + colorCyan + `*_test.go` + colorReset + ` file with a ` + colorCyan + `func Test<Name>(t *testing.T)` + colorReset + ` entry point
+that calls ` + colorCyan + `s.Run(t)` + colorReset + ` — fully compatible with ` + colorGray + `go test` + colorReset + `.
+
+On the first call, gest is added to the project's ` + colorCyan + `go.mod` + colorReset + ` automatically
+via ` + colorGray + `go get` + colorReset + `.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:test User
@@ -45,16 +43,11 @@ func runMakeTest(_ *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Printf(
-		"  %sCreating test spec%s %s\n",
+		"  %sCreating test%s %s\n",
 		colorGray, colorReset,
 		bold(name),
 	)
 	fmt.Println()
-
-	// Ensure the gest entrypoint exists before creating the spec.
-	if err := scaffoldTestMain(); err != nil {
-		return err
-	}
 
 	if err := scaffoldTestSpec(name); err != nil {
 		return err
@@ -67,10 +60,10 @@ func runMakeTest(_ *cobra.Command, args []string) error {
 	fmt.Printf(
 		"    %s1.%s Write your assertions in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/tests/"+snake+"_spec.go"+colorReset,
+		colorCyan+"internal/tests/"+snake+"_test.go"+colorReset,
 	)
 	fmt.Printf(
-		"    %s2.%s Run %s to execute all specs\n",
+		"    %s2.%s Run %s to execute all tests\n",
 		colorGray, colorReset,
 		colorGreen+"grove test"+colorReset,
 	)
@@ -95,20 +88,19 @@ var (
 
 var testCmd = &cobra.Command{
 	Use:   "test",
-	Short: "Run all gest specs in internal/tests",
+	Short: "Run all gest tests in internal/tests",
 	Long: bold(
 		"test",
-	) + ` compiles and runs every ` + colorCyan + `*_spec.go` + colorReset + ` file found in
-` + colorCyan + `internal/tests/` + colorReset + ` using the ` + colorCyan + `gest` + colorReset + ` testing framework.
+	) + ` runs every ` + colorCyan + `*_test.go` + colorReset + ` file found in
+` + colorCyan + `internal/tests/` + colorReset + ` using the ` + colorCyan + `gest` + colorReset + ` CLI for beautiful Jest-style output.
 
-The test suite is compiled once to ` + colorCyan + `.grove/tmp/tests` + colorReset + ` and executed
-directly — subsequent runs (and watch-mode rebuilds) only recompile what
-changed, making them significantly faster than ` + colorGray + `go run` + colorReset + `.
+If the ` + colorCyan + `gest` + colorReset + ` CLI is not installed, grove falls back to ` + colorGray + `go test -v` + colorReset + `
+automatically. Install it for the full experience:
+  ` + colorGray + `go install github.com/caiolandgraf/gest/v2/cmd/gest@latest` + colorReset + `
 
-Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report.
-Pass ` + colorGreen + `-w` + colorReset + ` to enter watch mode — specs re-run automatically on every
-file change. No external tools required.
-Flags can be combined: ` + colorGreen + `-wc` + colorReset + ` runs watch mode with the coverage report.
+Pass ` + colorGreen + `-c` + colorReset + ` to display a per-suite coverage report after the run.
+Pass ` + colorGreen + `-w` + colorReset + ` to enter watch mode — tests re-run automatically on every
+file change. Flags can be combined: ` + colorGreen + `-wc` + colorReset + `.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove test
@@ -127,7 +119,7 @@ func init() {
 	testCmd.Flags().BoolVarP(
 		&testWatch,
 		"watch", "w", false,
-		"Re-run specs automatically on file changes (built-in, no external tools)",
+		"Re-run tests automatically on file changes",
 	)
 }
 
@@ -137,80 +129,37 @@ func runTest(_ *cobra.Command, _ []string) error {
 	if _, err := os.Stat(testsDir); os.IsNotExist(err) {
 		return fmt.Errorf(
 			"tests directory not found: %s\n\n"+
-				"  Create your first spec with: %s",
+				"  Create your first test with: %s",
 			colorCyan+testsDir+colorReset,
 			colorGreen+"grove make:test <Name>"+colorReset,
 		)
 	}
 
-	// Ensure the tmp directory exists for the compiled binary.
-	if err := os.MkdirAll(filepath.Dir(testBin), 0o755); err != nil {
-		return fmt.Errorf("cannot create tmp dir: %w", err)
-	}
-
 	if testWatch {
-		return runTestWatch(testsDir)
+		return runTestWatch()
 	}
 
-	return runTestOnce(testsDir)
-}
-
-// ──────────────────────────────────────────────
-// Build helper
-// ──────────────────────────────────────────────
-
-// buildTests compiles internal/tests into the testBin binary.
-// It returns the stderr output on failure so the caller can display it.
-func buildTests(testsDir string) error {
-	var stderr bytes.Buffer
-	c := exec.Command("go", "build", "-o", testBin, testsDir)
-	c.Stderr = &stderr
-	c.Stdout = nil
-
-	if err := c.Run(); err != nil {
-		// Print compiler errors through the build writer for coloured output.
-		bw := newBuildOutputWriter(os.Stderr)
-		_, _ = bw.Write(stderr.Bytes())
-		return fmt.Errorf("build failed")
-	}
-	return nil
+	return runTestOnce()
 }
 
 // ──────────────────────────────────────────────
 // One-shot run
 // ──────────────────────────────────────────────
 
-func runTestOnce(testsDir string) error {
+// runTestOnce runs the test suite once, preferring the gest CLI and falling
+// back to plain `go test -v` when gest is not installed.
+func runTestOnce() error {
+	cmd, args := buildTestCommand()
+
 	fmt.Println()
 	fmt.Printf(
-		"  %sBuilding specs%s %s\n",
+		"  %sRunning tests%s %s\n",
 		colorGray, colorReset,
-		gray("(go build "+testsDir+" → "+testBin+")"),
+		gray("("+cmd+" "+joinArgs(args)+")"),
 	)
 	fmt.Println()
 
-	start := time.Now()
-	if err := buildTests(testsDir); err != nil {
-		fmt.Println()
-		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
-		fmt.Println()
-		return err
-	}
-	buildElapsed := time.Since(start)
-
-	fmt.Printf(
-		"  %sRunning specs%s %s\n",
-		colorGray, colorReset,
-		gray(fmt.Sprintf("(built in %s)", fmtTestElapsed(buildElapsed))),
-	)
-	fmt.Println()
-
-	var runArgs []string
-	if testCoverage {
-		runArgs = append(runArgs, "-c")
-	}
-
-	c := exec.Command(testBin, runArgs...)
+	c := exec.Command(cmd, args...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
@@ -237,47 +186,36 @@ func runTestOnce(testsDir string) error {
 			fmt.Println()
 			return nil
 		}
-		// gest exits with code 1 when tests fail — that's expected behaviour,
-		// so we suppress the generic error wrapper and let gest's own output
-		// speak for itself.
-		return fmt.Errorf("one or more specs failed")
+		// gest / go test exits with code 1 on failures — suppress the wrapper
+		// and let the runner's own output speak for itself.
+		return fmt.Errorf("one or more tests failed")
 	}
 
 	return nil
 }
 
 // ──────────────────────────────────────────────
-// Watch mode (built-in, no external tools)
+// Watch mode
 // ──────────────────────────────────────────────
 
-// testWatcher holds the state for the built-in test watch loop.
-type testWatcher struct {
-	testsDir string
-
-	mu       sync.Mutex
-	debounce *time.Timer
-	proc     *exec.Cmd     // currently running test binary
-	procDone chan struct{} // closed when proc exits
-	buildCh  chan struct{} // signals the build worker
+// runTestWatch enters watch mode. When the gest CLI is available it delegates
+// to `gest --watch [-c] ./internal/tests/...`. Otherwise it falls back to a
+// simple polling loop that re-runs `go test -v` on every .go file change.
+func runTestWatch() error {
+	gestPath, gestAvailable := resolveGestCLI()
+	if gestAvailable {
+		return runGestWatch(gestPath)
+	}
+	return runGoTestWatchLoop()
 }
 
-func runTestWatch(testsDir string) error {
-	fsw, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("cannot create watcher: %w", err)
+// runGestWatch delegates watch mode to the gest CLI binary.
+func runGestWatch(gestPath string) error {
+	args := []string{"--watch"}
+	if testCoverage {
+		args = append(args, "-c")
 	}
-	defer fsw.Close() //nolint:errcheck
-
-	// Watch the whole project for .go file changes, not just internal/tests,
-	// so that changes to models, services etc. also trigger a re-run.
-	if err := addTestDirRecursive(fsw, "."); err != nil {
-		return err
-	}
-
-	tw := &testWatcher{
-		testsDir: testsDir,
-		buildCh:  make(chan struct{}, 1),
-	}
+	args = append(args, "./internal/tests/...")
 
 	fmt.Println()
 	fmt.Printf(
@@ -285,208 +223,200 @@ func runTestWatch(testsDir string) error {
 		colorBgGreen, colorReset,
 		bold("Ctrl+C"),
 	)
-	if testCoverage {
-		fmt.Printf("  %sCoverage report enabled%s\n", colorGray, colorReset)
-	}
 	fmt.Println()
 
-	// Trigger an initial build+run immediately.
-	tw.buildCh <- struct{}{}
-
-	// Build worker — serialises all rebuild+run cycles.
-	go func() {
-		for range tw.buildCh {
-			tw.buildAndRun()
-		}
-	}()
+	c := exec.Command(gestPath, args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Stdin = os.Stdin
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	for {
-		select {
-		case event, ok := <-fsw.Events:
-			if !ok {
-				return nil
-			}
-			// Auto-watch newly created subdirectories.
-			if event.Has(fsnotify.Create) {
-				if info, err := os.Stat(
-					event.Name,
-				); err == nil &&
-					info.IsDir() {
-					_ = addTestDirRecursive(fsw, event.Name)
-				}
-			}
-			if shouldHandleTestEvent(event) {
-				tw.scheduleRebuild()
-			}
+	if err := c.Start(); err != nil {
+		return fmt.Errorf("failed to start gest watch: %w", err)
+	}
 
-		case err, ok := <-fsw.Errors:
-			if !ok {
-				return nil
-			}
-			fmt.Printf(
-				"  %swatcher error: %s%s\n",
-				colorYellow,
-				err.Error(),
-				colorReset,
-			)
+	go func() {
+		sig := <-sigCh
+		if c.Process != nil {
+			_ = c.Process.Signal(sig)
+		}
+	}()
 
-		case <-sigCh:
-			tw.stopProc()
+	if err := c.Wait(); err != nil {
+		if isSignalError(err) {
 			fmt.Println()
 			fmt.Println(gray("  Watch stopped."))
 			fmt.Println()
 			return nil
 		}
+		// test failures inside watch mode are not CLI errors
+		return nil
 	}
+
+	return nil
 }
 
-// scheduleRebuild debounces rapid saves into a single rebuild.
-func (tw *testWatcher) scheduleRebuild() {
-	tw.mu.Lock()
-	defer tw.mu.Unlock()
-
-	if tw.debounce != nil {
-		tw.debounce.Stop()
-	}
-	tw.debounce = time.AfterFunc(100*time.Millisecond, func() {
-		select {
-		case tw.buildCh <- struct{}{}:
-		default:
-		}
-	})
-}
-
-// buildAndRun stops any running test binary, rebuilds, and runs.
-func (tw *testWatcher) buildAndRun() {
-	tw.stopProc()
-
+// runGoTestWatchLoop is the fallback watch implementation used when the gest
+// CLI is not installed. It polls for .go file changes every 500 ms and
+// re-runs `go test -v ./internal/tests/...` on each change.
+func runGoTestWatchLoop() error {
 	fmt.Println()
 	fmt.Printf(
-		"  %s%s%s  %s\n",
-		colorBgBlue, " BUILDING ", colorReset,
-		gray("(go build "+tw.testsDir+" → "+testBin+")"),
+		"  %s WATCH %s  Watching for changes — press %s to stop\n",
+		colorBgGreen, colorReset,
+		bold("Ctrl+C"),
 	)
-
-	start := time.Now()
-	if err := buildTests(tw.testsDir); err != nil {
-		fmt.Println()
-		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
-		fmt.Println()
-		return
-	}
-	buildElapsed := time.Since(start)
-
 	fmt.Printf(
-		"  %s%s%s  %s\n\n",
-		colorBgGreen, " RUNNING ", colorReset,
-		gray(fmt.Sprintf("built in %s", fmtTestElapsed(buildElapsed))),
+		"  %sTip: install the gest CLI for a better experience:%s\n",
+		colorGray, colorReset,
+	)
+	fmt.Printf(
+		"       %sgo install github.com/caiolandgraf/gest/v2/cmd/gest@latest%s\n\n",
+		colorCyan,
+		colorReset,
 	)
 
-	var runArgs []string
-	if testCoverage {
-		runArgs = append(runArgs, "-c")
-	}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 
-	proc := exec.Command(testBin, runArgs...)
-	proc.Stdout = os.Stdout
-	proc.Stderr = os.Stderr
-	proc.Stdin = os.Stdin
+	// Run once immediately.
+	runGoTestOnce()
 
-	if err := proc.Start(); err != nil {
-		fmt.Printf(
-			"  %sfailed to start tests: %s%s\n",
-			colorRed,
-			err.Error(),
-			colorReset,
-		)
-		return
-	}
+	snapshots := snapshotGoFiles(".")
 
-	done := make(chan struct{})
-
-	tw.mu.Lock()
-	tw.proc = proc
-	tw.procDone = done
-	tw.mu.Unlock()
-
-	go func() {
-		_ = proc.Wait()
-		close(done)
-	}()
-}
-
-// stopProc sends SIGINT to the running test binary and waits for it to exit.
-func (tw *testWatcher) stopProc() {
-	tw.mu.Lock()
-	proc := tw.proc
-	done := tw.procDone
-	tw.proc = nil
-	tw.procDone = nil
-	tw.mu.Unlock()
-
-	if proc == nil || proc.Process == nil {
-		return
-	}
-
-	_ = proc.Process.Signal(os.Interrupt)
-
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		_ = proc.Process.Kill()
-		if done != nil {
-			<-done
+	for {
+		select {
+		case <-sigCh:
+			fmt.Println()
+			fmt.Println(gray("  Watch stopped."))
+			fmt.Println()
+			return nil
+		case <-time.After(500 * time.Millisecond):
+			current := snapshotGoFiles(".")
+			if snapshotsChanged(snapshots, current) {
+				snapshots = current
+				fmt.Print("\033[2J\033[3J\033[H")
+				runGoTestOnce()
+			}
 		}
 	}
 }
 
+// runGoTestOnce executes `go test -v ./internal/tests/...` synchronously.
+func runGoTestOnce() {
+	args := []string{"test", "-v"}
+	if testCoverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./internal/tests/...")
+
+	c := exec.Command("go", args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	_ = c.Run()
+}
+
 // ──────────────────────────────────────────────
-// fsnotify helpers
+// Snapshot helpers (polling watcher)
 // ──────────────────────────────────────────────
 
-var testExcludeDirs = map[string]bool{
+var watchExcludeDirs = map[string]bool{
 	".git":         true,
 	".grove":       true,
 	"vendor":       true,
 	"node_modules": true,
 }
 
-func addTestDirRecursive(fsw *fsnotify.Watcher, root string) error {
-	return filepath.WalkDir(
+// snapshotGoFiles returns a map of path → mtime (nanoseconds) for every .go
+// file under root, skipping directories in watchExcludeDirs.
+func snapshotGoFiles(root string) map[string]int64 {
+	snap := map[string]int64{}
+	_ = filepath.WalkDir(
 		root,
 		func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
 			if d.IsDir() {
-				if testExcludeDirs[d.Name()] {
+				if watchExcludeDirs[d.Name()] {
 					return filepath.SkipDir
 				}
-				return fsw.Add(path)
+				return nil
+			}
+			if filepath.Ext(path) == ".go" {
+				if info, e := d.Info(); e == nil {
+					snap[path] = info.ModTime().UnixNano()
+				}
 			}
 			return nil
 		},
 	)
+	return snap
 }
 
-func shouldHandleTestEvent(event fsnotify.Event) bool {
-	if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
-		return false
+// snapshotsChanged reports whether current differs from prev (new, deleted or
+// modified files).
+func snapshotsChanged(prev, current map[string]int64) bool {
+	if len(prev) != len(current) {
+		return true
 	}
-	return filepath.Ext(event.Name) == ".go"
+	for path, mtime := range current {
+		if prev[path] != mtime {
+			return true
+		}
+	}
+	return false
 }
 
 // ──────────────────────────────────────────────
-// Formatting helpers
+// Helpers
 // ──────────────────────────────────────────────
 
-func fmtTestElapsed(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%.0fms", float64(d)/float64(time.Millisecond))
+// buildTestCommand returns the command and arguments to run the test suite
+// once. Prefers the gest CLI; falls back to `go test -v`.
+func buildTestCommand() (string, []string) {
+	gestPath, ok := resolveGestCLI()
+	if ok {
+		args := []string{}
+		if testCoverage {
+			args = append(args, "-c")
+		}
+		args = append(args, "./internal/tests/...")
+		return gestPath, args
 	}
-	return fmt.Sprintf("%.1fs", d.Seconds())
+
+	// Fallback: plain go test
+	args := []string{"test", "-v"}
+	if testCoverage {
+		args = append(args, "-cover")
+	}
+	args = append(args, "./internal/tests/...")
+	return "go", args
+}
+
+// resolveGestCLI returns the path to the gest CLI binary and true when it is
+// available on PATH.
+func resolveGestCLI() (string, bool) {
+	path, err := exec.LookPath("gest")
+	if err != nil {
+		return "", false
+	}
+	return path, true
+}
+
+// joinArgs joins a slice of strings into a single space-separated string for
+// display purposes.
+func joinArgs(args []string) string {
+	result := ""
+	for i, a := range args {
+		if i > 0 {
+			result += " "
+		}
+		result += a
+	}
+	return result
 }

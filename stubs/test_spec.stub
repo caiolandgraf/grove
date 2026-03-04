@@ -1,8 +1,12 @@
-package main
+package tests
 
-import "github.com/caiolandgraf/gest/gest"
+import (
+	"testing"
 
-func init() {
+	"github.com/caiolandgraf/gest/v2/gest"
+)
+
+func Test{{.Name}}(t *testing.T) {
 	s := gest.Describe("{{.Name}}")
 
 	s.It("should work", func(t *gest.T) {
@@ -10,5 +14,5 @@ func init() {
 		t.Expect(true).ToBeTrue()
 	})
 
-	gest.Register(s)
+	s.Run(t)
 }

@@ -21,9 +21,6 @@ var requestStub string
 //go:embed stubs/middleware.stub
 var middlewareStub string
 
-//go:embed stubs/test_main.stub
-var testMainStub string
-
 //go:embed stubs/test_spec.stub
 var testSpecStub string
 

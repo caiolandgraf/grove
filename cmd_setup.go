@@ -183,6 +183,26 @@ func runSetup(_ *cobra.Command, args []string) error {
 	}
 	s.succeed(fmtDuration(time.Since(start)))
 
+	// ── Step 5: Add gest library to go.mod ────────────────────────────────
+	s = startStep("Installing gest")
+	start = time.Now()
+	if err := runGoGetGest(projectName); err != nil {
+		// Non-fatal: the user can run `go get` manually later.
+		s.fail("run `go get " + gestModule + "` manually")
+	} else {
+		s.succeed(fmtDuration(time.Since(start)))
+	}
+
+	// ── Step 6: Install gest CLI globally ─────────────────────────────────
+	s = startStep("Installing gest CLI")
+	start = time.Now()
+	if err := runGoInstallGestCLI(); err != nil {
+		// Non-fatal: grove test falls back to go test -v when absent.
+		s.fail("run `go install " + gestCLIModule + "` manually")
+	} else {
+		s.succeed(fmtDuration(time.Since(start)))
+	}
+
 	succeeded = true
 	printSetupSuccess(projectName)
 	return nil
@@ -399,6 +419,37 @@ func runGoModTidy(projectDir string) error {
 	return nil
 }
 
+// runGoGetGest runs "go get github.com/caiolandgraf/gest/v2@latest" inside
+// projectDir, adding gest to the project's go.mod.
+func runGoGetGest(projectDir string) error {
+	cmd := exec.Command("go", "get", gestModule)
+	cmd.Dir = projectDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
+}
+
+// runGoInstallGestCLI runs "go install github.com/caiolandgraf/gest/v2/cmd/gest@latest"
+// to make the gest CLI available globally on the user's PATH.
+func runGoInstallGestCLI() error {
+	cmd := exec.Command("go", "install", gestCLIModule)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
+}
+
 // ──────────────────────────────────────────────
 // UI helpers
 // ──────────────────────────────────────────────
@@ -440,9 +491,31 @@ func printSetupSuccess(projectName string) {
 	fmt.Println(done("Project created in " + bold("./"+projectName)))
 	fmt.Println()
 	fmt.Println(nextSteps())
-	fmt.Printf("    %scd %s%s\n", colorGreen, projectName, colorReset)
-	fmt.Printf("    %scp .env.example .env%s\n", colorGreen, colorReset)
-	fmt.Printf("    %sgrove dev%s\n", colorGreen, colorReset)
+	fmt.Printf(
+		"    %s1.%s %s\n",
+		colorGray,
+		colorReset,
+		colorGreen+"cd "+projectName+colorReset,
+	)
+	fmt.Printf(
+		"    %s2.%s %s\n",
+		colorGray,
+		colorReset,
+		colorGreen+"cp .env.example .env"+colorReset,
+	)
+	fmt.Printf(
+		"    %s3.%s %s\n",
+		colorGray,
+		colorReset,
+		colorGreen+"grove dev"+colorReset,
+	)
+	fmt.Printf(
+		"    %s4.%s %s  %s\n",
+		colorGray,
+		colorReset,
+		colorGreen+"grove make:test <Name>"+colorReset,
+		colorDim+"scaffold your first test"+colorReset,
+	)
 	fmt.Println()
 }
 
