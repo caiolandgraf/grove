@@ -93,10 +93,44 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
 | `grove make:migration <name>` | Generate a SQL migration via Atlas diff (after editing your model) |
 | `grove make:resource <Name>` | Scaffold model + controller + DTO in one shot |
+| `grove make:relations` | Infer and add GORM relationships from foreign keys |
 
 > **Name singularization:** all generator commands accept plural or mixed-case names and convert them automatically. `Books`, `books`, and `Book` all produce the same `Book` model and `books` table.
 
 > **Migration workflow:** migrations are **not** generated automatically when scaffolding a model or resource. Add your fields to the model first, then run `grove make:migration <name>` to let Atlas diff your schema and generate the correct SQL. This ensures the migration reflects the fields you actually defined.
+
+#### `grove make:relations`
+
+Infers model relationships from foreign key fields (for example, `UserID`) and adds GORM relation fields automatically.
+
+By default, it generates only the **has-many** side on the target model (for example, `PaymentMethods []PaymentMethod` on `User`).  
+Use `--with-belongs-to` to also generate the **belongs-to** side on the source model (for example, `User *User` on `PaymentMethod`).
+
+| Flag | Description |
+|---|---|
+| `--path` | Models directory (default: `internal/models`) |
+| `--dry-run` | Preview inferred relations without writing files |
+| `--verbose` | Print detailed relation inference logs |
+| `--with-belongs-to` | Also generate belongs-to fields on source models |
+| `--model` | Limit processing to specific source model(s). Can be repeated or comma-separated |
+
+Examples:
+
+```bash
+# infer relations for all models (has-many only)
+grove make:relations
+
+# preview changes with detailed logs
+grove make:relations --dry-run --verbose
+
+# generate both sides (has-many + belongs-to)
+grove make:relations --with-belongs-to
+
+# process only specific source models
+grove make:relations --model PaymentMethod
+grove make:relations --model PaymentMethod,Order
+grove make:relations --model PaymentMethod --model Order
+```
 
 ### Testing
 

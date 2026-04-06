@@ -36,7 +36,8 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:dto" + colorReset + "         <Name>   Scaffold a DTO request/response file\n" +
 		"    grove " + colorGreen + "make:middleware" + colorReset + "  <Name>   Scaffold an HTTP middleware\n" +
 		"    grove " + colorGreen + "make:migration" + colorReset + "   <name>   Generate a migration via atlas migrate diff\n" +
-		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + controller + DTO at once\n"
+		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + controller + DTO at once\n" +
+		"    grove " + colorGreen + "make:relations" + colorReset + "             Infer and add GORM relations from foreign keys\n"
 
 	update := "\n" +
 		"  " + colorBold + colorGray + "MAINTENANCE" + colorReset + "\n" +
@@ -100,6 +101,7 @@ func init() {
 	makeMiddlewareCmd.GroupID = "generators"
 	makeMigrationCmd.GroupID = "generators"
 	makeResourceCmd.GroupID = "generators"
+	makeRelationsCmd.GroupID = "generators"
 	makeTestCmd.GroupID = "testing"
 
 	rootCmd.AddCommand(makeModelCmd)
@@ -109,6 +111,7 @@ func init() {
 	rootCmd.AddCommand(makeMiddlewareCmd)
 	rootCmd.AddCommand(makeMigrationCmd)
 	rootCmd.AddCommand(makeResourceCmd)
+	rootCmd.AddCommand(makeRelationsCmd)
 	rootCmd.AddCommand(makeTestCmd)
 
 	// ── Testing ───────────────────────────────────────────────────────────────

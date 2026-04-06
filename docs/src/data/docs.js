@@ -680,6 +680,85 @@ grove make:migration create_orders_table --env dev`
         ]
       },
       {
+        id: 'cmd-make-relations',
+        title: 'grove make:relations',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Infers model relationships from foreign key fields (for example, <code>UserID</code>) and adds GORM relation fields automatically.'
+          },
+          {
+            type: 'paragraph',
+            text: 'By default, it generates only the <strong>has-many</strong> side on the target model (for example, <code>PaymentMethods []PaymentMethod</code> on <code>User</code>).'
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: 'Use <code>--with-belongs-to</code> to also generate the <strong>belongs-to</strong> side on the source model (for example, <code>User *User</code> on <code>PaymentMethod</code>).'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove make:relations [--path <models-dir>] [--dry-run] [--verbose] [--with-belongs-to] [--model <Model>]`
+          },
+          {
+            type: 'table',
+            head: ['Flag', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>--path</code>',
+                '<code>internal/models</code>',
+                'Models directory to scan'
+              ],
+              [
+                '<code>--dry-run</code>',
+                '<code>false</code>',
+                'Preview inferred relations without writing files'
+              ],
+              [
+                '<code>--verbose</code>',
+                '<code>false</code>',
+                'Print detailed relation inference logs'
+              ],
+              [
+                '<code>--with-belongs-to</code>',
+                '<code>false</code>',
+                'Also generate belongs-to fields on source models'
+              ],
+              [
+                '<code>--model</code>',
+                'all models',
+                'Limit processing to specific source model(s). Can be repeated or comma-separated.'
+              ]
+            ]
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'examples',
+            code: `# infer relations for all models (has-many only)
+grove make:relations
+
+# preview inferred changes with detailed logs
+grove make:relations --dry-run --verbose
+
+# generate both sides (has-many + belongs-to)
+grove make:relations --with-belongs-to
+
+# process only specific source models
+grove make:relations --model PaymentMethod
+grove make:relations --model PaymentMethod,Order
+grove make:relations --model PaymentMethod --model Order`
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'The command avoids duplicate relation fields and only infers relationships from supported foreign key types.'
+          }
+        ]
+      },
+      {
         id: 'cmd-make-resource',
         title: 'grove make:resource',
         blocks: [
