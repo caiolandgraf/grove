@@ -6,12 +6,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var makeControllerNoAuth bool
+
 var makeControllerCmd = &cobra.Command{
 	Use:   "make:controller <Name>",
 	Short: "Scaffold a new fuego controller",
 	Long: bold(
 		"make:controller",
 	) + ` scaffolds a new fuego controller in ` + colorCyan + `internal/controllers/` + colorReset + `.
+
+By default, the generated controller uses a struct + constructor header (ready for session/auth wiring).
+Pass ` + colorGreen + `--no-auth` + colorReset + ` to generate the legacy function-based controller stub instead.
 
 The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
 so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `PostController` + colorReset + `.
@@ -20,9 +25,20 @@ so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorRe
   grove make:controller Post
   grove make:controller Posts        # same as Post (singularized)
   grove make:controller BlogPost
-  grove make:controller user_profile`,
+  grove make:controller user_profile
+  grove make:controller Bill         # new header (default)
+  grove make:controller Bill --no-auth   # legacy stub`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeController,
+}
+
+func init() {
+	makeControllerCmd.Flags().BoolVar(
+		&makeControllerNoAuth,
+		"no-auth",
+		false,
+		"Generate the legacy function-based controller stub (no session/auth header)",
+	)
 }
 
 func runMakeController(_ *cobra.Command, args []string) error {
@@ -37,7 +53,7 @@ func runMakeController(_ *cobra.Command, args []string) error {
 	)
 	fmt.Println()
 
-	if err := scaffoldController(name); err != nil {
+	if err := scaffoldController(name, makeControllerNoAuth); err != nil {
 		return err
 	}
 
@@ -57,38 +73,89 @@ func runMakeController(_ *cobra.Command, args []string) error {
 		colorGray, colorReset,
 		colorCyan+"internal/routes/"+colorReset,
 	)
+
+	if makeControllerNoAuth {
+		fmt.Printf(
+			"             %sfuego.Get(s, \"/%ss/{%s_id}\", controllers.Get%s)\n",
+			colorGray,
+			snake,
+			snake,
+			name+colorReset,
+		)
+		fmt.Printf(
+			"             %sfuego.Get(s, \"/%ss\", controllers.List%ss)\n",
+			colorGray,
+			snake,
+			name+colorReset,
+		)
+		fmt.Printf(
+			"             %sfuego.Post(s, \"/%ss\", controllers.Create%s)\n",
+			colorGray,
+			snake,
+			name+colorReset,
+		)
+		fmt.Printf(
+			"             %sfuego.Put(s, \"/%ss/{%s_id}\", controllers.Update%s)\n",
+			colorGray,
+			snake,
+			snake,
+			name+colorReset,
+		)
+		fmt.Printf(
+			"             %sfuego.Delete(s, \"/%ss/{%s_id}\", controllers.Delete%s)\n",
+			colorGray,
+			snake,
+			snake,
+			name+colorReset,
+		)
+		fmt.Println()
+		return nil
+	}
+
 	fmt.Printf(
-		"             %sfuego.Get(s, \"/%ss/{%s_id}\", controllers.Get%s)\n",
+		"             %s%s\n",
 		colorGray,
-		snake,
-		snake,
-		name+colorReset,
+		"api := fuego.Group(s, \"/api/v1\")"+colorReset,
 	)
 	fmt.Printf(
-		"             %sfuego.Get(s, \"/%ss\", controllers.List%ss)\n",
+		"             %s%s\n",
 		colorGray,
-		snake,
-		name+colorReset,
+		"group := fuego.Group(api, \"/"+toPlural(snake)+"\")"+colorReset,
 	)
 	fmt.Printf(
-		"             %sfuego.Post(s, \"/%ss\", controllers.Create%s)\n",
+		"             %s%s\n",
 		colorGray,
-		snake,
-		name+colorReset,
+		toLowerFirst(
+			name,
+		)+"Controller := controllers.New"+name+"Controller(app.Session)"+colorReset,
 	)
 	fmt.Printf(
-		"             %sfuego.Put(s, \"/%ss/{%s_id}\", controllers.Update%s)\n",
+		"             %sfuego.Get(group, \"/\", %sController.List)\n",
 		colorGray,
-		snake,
-		snake,
-		name+colorReset,
+		toSnakeCase(toLowerFirst(name)),
 	)
 	fmt.Printf(
-		"             %sfuego.Delete(s, \"/%ss/{%s_id}\", controllers.Delete%s)\n",
+		"             %sfuego.Post(group, \"/\", %sController.Create)\n",
+		colorGray,
+		toSnakeCase(toLowerFirst(name)),
+	)
+	fmt.Printf(
+		"             %sfuego.Get(group, \"/{%s_id}\", %sController.Get)\n",
 		colorGray,
 		snake,
+		toSnakeCase(toLowerFirst(name)),
+	)
+	fmt.Printf(
+		"             %sfuego.Put(group, \"/{%s_id}\", %sController.Update)\n",
+		colorGray,
 		snake,
-		name+colorReset,
+		toSnakeCase(toLowerFirst(name)),
+	)
+	fmt.Printf(
+		"             %sfuego.Delete(group, \"/{%s_id}\", %sController.Delete)\n",
+		colorGray,
+		snake,
+		toSnakeCase(toLowerFirst(name)),
 	)
 	fmt.Println()
 

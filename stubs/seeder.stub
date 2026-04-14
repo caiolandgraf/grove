@@ -1,0 +1,27 @@
+package seeders
+
+import (
+	"fmt"
+
+	"{{.Module}}/internal/models"
+	"gorm.io/gorm"
+)
+
+// {{.Name}}Seeder seeds initial {{.Name}} data.
+type {{.Name}}Seeder struct{}
+
+func ({{.Name}}Seeder) Name() string { return "{{.Name}}Seeder" }
+
+func ({{.Name}}Seeder) Seed(db *gorm.DB) error {
+	// TODO: implement seeding logic
+	//
+	// Example pattern:
+	//   - check if a record exists (db.Where(...).First(...))
+	//   - if not found, create it (db.Create(...))
+	//
+	// Keep the seeder idempotent: running it multiple times should be safe.
+	_ = db
+	_ = models.User{} // remove when you use actual models
+
+	return fmt.Errorf("{{.Name}}Seeder: not implemented")
+}

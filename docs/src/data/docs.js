@@ -452,9 +452,17 @@ type Post struct {
 
 func (Post) TableName() string { return "posts" }
 
+// postRepository is a wrapper around the generic Repository for the Post model,
+// allowing custom queries and methods specific to Post.
+type postRepository struct {
+	*database.Repository[Post]
+}
+
 // Posts returns a repository scoped to the Post model.
-func Posts() *database.Repository[Post] {
-	return database.New[Post](app.DB)
+func Posts() *postRepository {
+	return &postRepository{
+		Repository: database.New[Post](app.DB),
+	}
 }`
           }
         ]
@@ -465,13 +473,13 @@ func Posts() *database.Repository[Post] {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new fuego controller with full CRUD handlers in <code>internal/controllers/</code>. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
+            text: 'Scaffolds a new fuego controller with full CRUD handlers in <code>internal/controllers/</code>. By default the generated controller uses a struct + constructor header (ready for session/auth wiring). Pass <code>--no-auth</code> to generate the legacy function-based stub instead. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove make:controller <Name>`
+            code: `grove make:controller <Name> [--no-auth]`
           },
           {
             type: 'code',
@@ -484,10 +492,20 @@ import (
 
 	"your/module/internal/dto"
 	"your/module/internal/models"
+
+	"github.com/alexedwards/scs/v2"
 	"github.com/go-fuego/fuego"
 )
 
-func GetPost(c fuego.ContextNoBody) (*dto.PostResponse, error) {
+type PostController struct {
+	session *scs.SessionManager
+}
+
+func NewPostController(session *scs.SessionManager) *PostController {
+	return &PostController{session: session}
+}
+
+func (ctl *PostController) Get(c fuego.ContextNoBody) (*dto.PostResponse, error) {
 	id := c.PathParam("post_id")
 
 	item, err := models.Posts().Find(id)
@@ -497,7 +515,7 @@ func GetPost(c fuego.ContextNoBody) (*dto.PostResponse, error) {
 	return toPostDTO(item), nil
 }
 
-func ListPosts(c fuego.ContextNoBody) (*dto.PostsListResponse, error) {
+func (ctl *PostController) List(c fuego.ContextNoBody) (*dto.PostsListResponse, error) {
 	items, err := models.Posts().All()
 	if err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusInternalServerError, Err: err}
@@ -509,7 +527,7 @@ func ListPosts(c fuego.ContextNoBody) (*dto.PostsListResponse, error) {
 	return &dto.PostsListResponse{Items: result, Total: len(result)}, nil
 }
 
-func CreatePost(c fuego.ContextWithBody[dto.CreatePostRequest]) (*dto.PostResponse, error) {
+func (ctl *PostController) Create(c fuego.ContextWithBody[dto.CreatePostRequest]) (*dto.PostResponse, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusBadRequest, Err: err}
@@ -518,6 +536,7 @@ func CreatePost(c fuego.ContextWithBody[dto.CreatePostRequest]) (*dto.PostRespon
 		// TODO: map fields from body
 	}
 	_ = body
+
 	if err := models.Posts().Create(item); err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusBadRequest, Err: err}
 	}
@@ -688,6 +707,11 @@ grove make:migration create_orders_table --env dev`
             text: 'Infers model relationships from foreign key fields (for example, <code>UserID</code>) and adds GORM relation fields automatically.'
           },
           {
+            type: 'note',
+            kind: 'tip',
+            text: 'Foreign key suffixes <code>ID</code>, <code>Id</code>, and <code>id</code> are supported for inference. The generated GORM tag always references the original struct field name (for example, <code>foreignKey:BillCategoryId</code>).'
+          },
+          {
             type: 'paragraph',
             text: 'By default, it generates only the <strong>has-many</strong> side on the target model (for example, <code>PaymentMethods []PaymentMethod</code> on <code>User</code>).'
           },
@@ -755,6 +779,130 @@ grove make:relations --model PaymentMethod --model Order`
             type: 'note',
             kind: 'tip',
             text: 'The command avoids duplicate relation fields and only infers relationships from supported foreign key types.'
+          }
+        ]
+      },
+      {
+        id: 'cmd-make-seeder',
+        title: 'grove make:seeder',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Scaffolds a database seeder in <code>internal/database/seeders/</code>. Seeders implement a simple interface with <code>Name() string</code> and <code>Seed(db *gorm.DB) error</code>.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove make:seeder <Name> [--path <dir>] [--register]`
+          },
+          {
+            type: 'table',
+            head: ['Flag', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>--path</code>',
+                '<code>internal/database/seeders</code>',
+                'Target seeders directory'
+              ],
+              [
+                '<code>--register</code>',
+                '<code>false</code>',
+                'Register the new seeder in <code>internal/database/seeders/seeder.go</code> (adds it to the seeders list) if the file exists'
+              ]
+            ]
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'examples',
+            code: `grove make:seeder Users
+grove make:seeder BillCategories
+grove make:seeder order_items`
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'Keep seeders idempotent — running them multiple times should be safe.'
+          }
+        ]
+      },
+      {
+        id: 'cmd-make-seed-runner',
+        title: 'grove make:seed',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Scaffolds a dedicated seed runner entrypoint at <code>cmd/seed/main.go</code>. This runner initializes app globals and calls <code>internal/database/seeders.Run(app.DB)</code>.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove make:seed [--path <dir>]`
+          },
+          {
+            type: 'table',
+            head: ['Flag', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>--path</code>',
+                '<code>cmd/seed</code>',
+                'Target directory (creates <code>main.go</code> inside it)'
+              ]
+            ]
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'examples',
+            code: `grove make:seed
+grove make:seed --path ./cmd/seed`
+          }
+        ]
+      },
+      {
+        id: 'cmd-db-seed',
+        title: 'grove db:seed',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Runs your project seeders by executing the dedicated seed runner via <code>go run</code>. By default it runs <code>go run ./cmd/seed</code>.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove db:seed [--package <path>] [--env-file <file>]`
+          },
+          {
+            type: 'table',
+            head: ['Flag', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>--package</code>',
+                '<code>./cmd/seed</code>',
+                'Go package/path to execute (seed runner)'
+              ],
+              [
+                '<code>--env-file</code>',
+                '<code>.env</code>',
+                'Env file to load before running seeders (only if present; does not override existing env vars)'
+              ]
+            ]
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'examples',
+            code: `grove db:seed
+grove db:seed --package ./cmd/seed
+grove db:seed --env-file .env`
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: 'If you have not scaffolded the seed runner yet, run <code>grove make:seed</code> first.'
           }
         ]
       },
@@ -1547,23 +1695,60 @@ type PostsListResponse struct {
             code: `package routes
 
 import (
+	"your/module/internal/app"
 	"your/module/internal/controllers"
+	"your/module/internal/middleware"
+
 	"github.com/go-fuego/fuego"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-func Register(s *fuego.Server) {
-	// Posts
-	fuego.Get(s,    "/posts",           controllers.ListPosts)
-	fuego.Post(s,   "/posts",           controllers.CreatePost)
-	fuego.Get(s,    "/posts/{post_id}", controllers.GetPost)
-	fuego.Put(s,    "/posts/{post_id}", controllers.UpdatePost)
-	fuego.Delete(s, "/posts/{post_id}", controllers.DeletePost)
+// SetupRoutes configures all routes using app globals.
+func SetupRoutes(s *fuego.Server) {
+	// OpenTelemetry Middleware
+	fuego.Use(s, otelhttp.NewMiddleware("grove-app"))
 
-	// Auth (example grouping)
-	authGroup := fuego.Group(s, "/auth")
-	fuego.Post(authGroup, "/login",    controllers.Login)
-	fuego.Post(authGroup, "/register", controllers.Register)
-	fuego.Post(authGroup, "/logout",   controllers.Logout)
+	// Route tag middleware — reads r.Pattern (Go 1.22+) and sets http.route.
+	fuego.Use(s, middleware.RouteTagMiddleware)
+
+	// CORS Middleware global
+	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
+
+	// Session Middleware global
+	fuego.Use(s, middleware.SessionMiddleware(app.Session))
+
+	// Health check
+	fuego.Get(s, "/", healthCheck)
+	fuego.Get(s, "/health", healthCheckDetailed)
+
+	// Prometheus metrics endpoint
+	fuego.GetStd(s, "/metrics", app.Metrics.ServeHTTP)
+
+	// API v1
+	api := fuego.Group(s, "/api/v1")
+
+	// ========== AUTH ROUTES (Public) ==========
+	auth := fuego.Group(api, "/auth")
+	authController := controllers.NewAuthController(app.Session)
+	fuego.Post(auth, "/login", authController.Login)
+	fuego.Post(auth, "/register", authController.Register)
+
+	// ========== AUTH ROUTES (Private) ==========
+	authPrivate := fuego.Group(auth, "/")
+	fuego.Use(authPrivate, middleware.AuthRequired(app.Session))
+	fuego.Post(authPrivate, "/logout", authController.Logout)
+	fuego.Get(authPrivate, "/me", authController.Me)
+
+	// ========== POSTS ROUTES (Private) ==========
+	posts := fuego.Group(api, "/posts")
+	fuego.Use(posts, middleware.AuthRequired(app.Session))
+
+	postsController := controllers.NewPostController(app.Session)
+	fuego.Get(posts, "/", postsController.List)
+	fuego.Post(posts, "/", postsController.Create)
+	fuego.Get(posts, "/{post_id}", postsController.Get)
+	fuego.Put(posts, "/{post_id}", postsController.Update)
+	fuego.Delete(posts, "/{post_id}", postsController.Delete)
 }`
           },
           {

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -289,15 +291,91 @@ func runMigrateHash(cmd *cobra.Command, args []string) error {
 // Shared atlas runner
 // ──────────────────────────────────────────────
 
+// loadDotEnv reads a local .env file (if present) and merges any variables that
+// are not already defined in the current process environment.
+//
+// This is intentionally lightweight (no external dependency) and supports:
+//   - KEY=VALUE
+//   - export KEY=VALUE
+//   - comments starting with #
+//   - blank lines
+//
+// It does not attempt to fully emulate shell parsing (e.g. inline comments,
+// complex quoting, command substitution).
+func loadDotEnv(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "export ") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		}
+
+		// allow trailing comments only when the entire line is a comment (keeps it simple)
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+
+		val = strings.TrimSpace(val)
+
+		// strip simple surrounding quotes
+		if len(val) >= 2 {
+			if (val[0] == '"' && val[len(val)-1] == '"') ||
+				(val[0] == '\'' && val[len(val)-1] == '\'') {
+				val = val[1 : len(val)-1]
+			}
+		}
+
+		// do not override existing env vars
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		_ = os.Setenv(key, val)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // runAtlas checks for the atlas binary, then runs it with the given arguments,
 // forwarding stdout/stderr through atlasOutputWriter so the output is rendered
 // with Grove's colour palette and badge style.
+//
+// It also loads a local .env (if present) into the process environment so Atlas
+// can consume environment variables referenced by atlas.hcl.
 func runAtlas(description string, atlasArgs ...string) error {
 	if _, err := exec.LookPath("atlas"); err != nil {
 		return fmt.Errorf(
 			"atlas CLI not found in PATH\n\n  Install it from: %s",
 			colorCyan+"https://atlasgo.io/docs"+colorReset,
 		)
+	}
+
+	if err := loadDotEnv(".env"); err != nil {
+		return fmt.Errorf("failed to load .env: %w", err)
 	}
 
 	aw := newAtlasOutputWriter(os.Stdout)

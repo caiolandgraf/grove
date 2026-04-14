@@ -15,6 +15,9 @@ var modelStub string
 //go:embed stubs/controller.stub
 var controllerStub string
 
+//go:embed stubs/controller_legacy.stub
+var controllerLegacyStub string
+
 //go:embed stubs/request.stub
 var requestStub string
 
@@ -23,6 +26,12 @@ var middlewareStub string
 
 //go:embed stubs/test_spec.stub
 var testSpecStub string
+
+//go:embed stubs/seeder.stub
+var seederStub string
+
+//go:embed stubs/seed_runner.stub
+var seedRunnerStub string
 
 // ──────────────────────────────────────────────
 // Scaffold output helpers

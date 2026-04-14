@@ -17,7 +17,15 @@ type {{.Name}} struct {
 
 func ({{.Name}}) TableName() string { return "{{.TableName}}" }
 
+// {{.NameLower}}Repository is a wrapper around the generic Repository for the {{.Name}} model,
+// allowing custom queries and methods specific to {{.Name}}.
+type {{.NameLower}}Repository struct {
+	*database.Repository[{{.Name}}]
+}
+
 // {{.Name}}s returns a repository scoped to the {{.Name}} model.
-func {{.Name}}s() *database.Repository[{{.Name}}] {
-	return database.New[{{.Name}}](app.DB)
+func {{.Name}}s() *{{.NameLower}}Repository {
+	return &{{.NameLower}}Repository{
+		Repository: database.New[{{.Name}}](app.DB),
+	}
 }

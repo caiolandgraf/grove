@@ -93,7 +93,7 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 
 	// ── controller ───────────────────────────────────────────────────────────
 	if makeModelWithController {
-		if err := scaffoldController(name); err != nil {
+		if err := scaffoldController(name, false); err != nil {
 			return err
 		}
 	}

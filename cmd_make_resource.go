@@ -58,7 +58,7 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := scaffoldController(name); err != nil {
+	if err := scaffoldController(name, false); err != nil {
 		return err
 	}
 
@@ -91,9 +91,61 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		colorGreen+"grove migrate"+colorReset,
 	)
 	fmt.Printf(
-		"    %s5.%s Register routes in %s\n",
+		"    %s5.%s Register routes in %s (example):\n",
 		colorGray, colorReset,
-		colorCyan+"internal/routes/"+colorReset,
+		colorCyan+"internal/routes/routes.go"+colorReset,
+	)
+
+	fmt.Printf(
+		"             %sapi := fuego.Group(s, \"/api/v1\")%s\n",
+		colorGray,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sgroup := fuego.Group(api, \"/%ss\")%s\n",
+		colorGray,
+		snake,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %s%sController := controllers.New%sController(app.Session)%s\n",
+		colorGray,
+		snake,
+		name,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sfuego.Get(group, \"/\", %sController.List)%s\n",
+		colorGray,
+		snake,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sfuego.Post(group, \"/\", %sController.Create)%s\n",
+		colorGray,
+		snake,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sfuego.Get(group, \"/{%s_id}\", %sController.Get)%s\n",
+		colorGray,
+		snake,
+		snake,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sfuego.Put(group, \"/{%s_id}\", %sController.Update)%s\n",
+		colorGray,
+		snake,
+		snake,
+		colorReset,
+	)
+	fmt.Printf(
+		"             %sfuego.Delete(group, \"/{%s_id}\", %sController.Delete)%s\n",
+		colorGray,
+		snake,
+		snake,
+		colorReset,
 	)
 	fmt.Println()
 

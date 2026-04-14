@@ -44,10 +44,12 @@ func scaffoldModel(name string) error {
 
 	data := struct {
 		Name      string
+		NameLower string
 		TableName string
 		Module    string
 	}{
 		Name:      name,
+		NameLower: toLowerFirst(name),
 		TableName: tableName,
 		Module:    module,
 	}
@@ -69,7 +71,7 @@ func scaffoldModel(name string) error {
 // Controller
 // ──────────────────────────────────────────────
 
-func scaffoldController(name string) error {
+func scaffoldController(name string, noAuth bool) error {
 	snake := toSnakeCase(name)
 	kebab := toKebabCase(name)
 	destPath := filepath.Join("internal", "controllers", kebab+"-controller.go")
@@ -91,7 +93,12 @@ func scaffoldController(name string) error {
 		Module:    module,
 	}
 
-	content, err := renderStub(controllerStub, "controller", data)
+	stub := controllerStub
+	if noAuth {
+		stub = controllerLegacyStub
+	}
+
+	content, err := renderStub(stub, "controller", data)
 	if err != nil {
 		return err
 	}

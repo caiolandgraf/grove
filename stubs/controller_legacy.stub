@@ -5,20 +5,10 @@ import (
 
 	"{{.Module}}/internal/dto"
 	"{{.Module}}/internal/models"
-
-	"github.com/alexedwards/scs/v2"
 	"github.com/go-fuego/fuego"
 )
 
-type {{.Name}}Controller struct {
-	session *scs.SessionManager
-}
-
-func New{{.Name}}Controller(session *scs.SessionManager) *{{.Name}}Controller {
-	return &{{.Name}}Controller{session: session}
-}
-
-func (ctl *{{.Name}}Controller) Get(c fuego.ContextNoBody) (*dto.{{.Name}}Response, error) {
+func Get{{.Name}}(c fuego.ContextNoBody) (*dto.{{.Name}}Response, error) {
 	id := c.PathParam("{{.ParamName}}_id")
 
 	item, err := models.{{.Name}}s().Find(id)
@@ -32,7 +22,7 @@ func (ctl *{{.Name}}Controller) Get(c fuego.ContextNoBody) (*dto.{{.Name}}Respon
 	return to{{.Name}}DTO(item), nil
 }
 
-func (ctl *{{.Name}}Controller) List(c fuego.ContextNoBody) (*dto.{{.Name}}sListResponse, error) {
+func List{{.Name}}s(c fuego.ContextNoBody) (*dto.{{.Name}}sListResponse, error) {
 	items, err := models.{{.Name}}s().All()
 	if err != nil {
 		return nil, fuego.HTTPError{
@@ -52,7 +42,7 @@ func (ctl *{{.Name}}Controller) List(c fuego.ContextNoBody) (*dto.{{.Name}}sList
 	}, nil
 }
 
-func (ctl *{{.Name}}Controller) Create(c fuego.ContextWithBody[dto.Create{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
+func Create{{.Name}}(c fuego.ContextWithBody[dto.Create{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, fuego.HTTPError{
@@ -65,7 +55,6 @@ func (ctl *{{.Name}}Controller) Create(c fuego.ContextWithBody[dto.Create{{.Name
 		// TODO: map fields from body
 	}
 	_ = body
-	_ = ctl
 
 	if err := models.{{.Name}}s().Create(item); err != nil {
 		return nil, fuego.HTTPError{
@@ -77,7 +66,7 @@ func (ctl *{{.Name}}Controller) Create(c fuego.ContextWithBody[dto.Create{{.Name
 	return to{{.Name}}DTO(item), nil
 }
 
-func (ctl *{{.Name}}Controller) Update(c fuego.ContextWithBody[dto.Update{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
+func Update{{.Name}}(c fuego.ContextWithBody[dto.Update{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
 	id := c.PathParam("{{.ParamName}}_id")
 
 	body, err := c.Body()
@@ -100,7 +89,6 @@ func (ctl *{{.Name}}Controller) Update(c fuego.ContextWithBody[dto.Update{{.Name
 
 	// TODO: map updatable fields from body
 	_ = body
-	_ = ctl
 
 	if err := repo.Update(item); err != nil {
 		return nil, fuego.HTTPError{
@@ -112,9 +100,8 @@ func (ctl *{{.Name}}Controller) Update(c fuego.ContextWithBody[dto.Update{{.Name
 	return to{{.Name}}DTO(item), nil
 }
 
-func (ctl *{{.Name}}Controller) Delete(c fuego.ContextNoBody) (map[string]string, error) {
+func Delete{{.Name}}(c fuego.ContextNoBody) (map[string]string, error) {
 	id := c.PathParam("{{.ParamName}}_id")
-	_ = ctl
 
 	if err := models.{{.Name}}s().Delete(id); err != nil {
 		return nil, fuego.HTTPError{

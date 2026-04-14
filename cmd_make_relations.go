@@ -98,9 +98,18 @@ type modelFile struct {
 }
 
 type fkField struct {
-	Name       string
+	// Name is the original field name as it appears in the struct (ex: BillCategoryId).
+	// We keep this so we can reference the exact field in gorm:"foreignKey:...".
+	Name string
+
+	// CanonicalName is the normalized FK field name (ex: BillCategoryID). This is used
+	// only for inference purposes (matching the "ID" suffix reliably).
+	CanonicalName string
+
+	// TargetName is the inferred target struct name (ex: BillCategory).
 	TargetName string
-	TypeName   string
+
+	TypeName string
 }
 
 func runMakeRelations(_ *cobra.Command, _ []string) error {
@@ -372,21 +381,26 @@ func loadModelFiles(modelsDir string) ([]*modelFile, error) {
 			for _, sf := range st.Fields {
 				fields[sf.Name] = true
 
-				if !strings.HasSuffix(sf.Name, "ID") || len(sf.Name) <= 2 {
+				canonical, ok := canonicalizeForeignKeyField(sf.Name)
+				if !ok {
 					continue
 				}
-				target := strings.TrimSuffix(sf.Name, "ID")
+
+				// canonical is guaranteed to end with "ID"
+				target := strings.TrimSuffix(canonical, "ID")
 				if target == "" {
 					continue
 				}
+
 				if !isSupportedFKType(sf.TypeName) {
 					continue
 				}
 
 				fks = append(fks, fkField{
-					Name:       sf.Name,
-					TargetName: target,
-					TypeName:   sf.TypeName,
+					Name:          sf.Name,
+					CanonicalName: canonical,
+					TargetName:    target,
+					TypeName:      sf.TypeName,
 				})
 			}
 
@@ -500,6 +514,33 @@ func betterPluralize(s string) string {
 	last := parts[len(parts)-1]
 	parts[len(parts)-1] = toPlural(last)
 	return strings.Join(parts, "")
+}
+
+// canonicalizeForeignKeyField normalizes FK suffixes so we can reliably infer relations.
+//
+// Accepted inputs:
+//   - "...ID" (already canonical)
+//   - "...Id" (normalized to "...ID")
+//   - "...id" (normalized to "...ID")
+//
+// It returns (canonicalName, true) when the field looks like a FK,
+// otherwise ("", false).
+func canonicalizeForeignKeyField(fieldName string) (string, bool) {
+	if len(fieldName) <= 2 {
+		return "", false
+	}
+
+	if strings.HasSuffix(fieldName, "ID") {
+		return fieldName, true
+	}
+	if strings.HasSuffix(fieldName, "Id") {
+		return fieldName[:len(fieldName)-2] + "ID", true
+	}
+	if strings.HasSuffix(fieldName, "id") {
+		return fieldName[:len(fieldName)-2] + "ID", true
+	}
+
+	return "", false
 }
 
 func splitPascalWords(s string) []string {

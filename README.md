@@ -88,10 +88,13 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:model <Name> -d` | Scaffold model + DTO |
 | `grove make:model <Name> -cd` | Scaffold model + controller + DTO |
 | `grove make:model <Name> -r` | Full resource — shorthand for `-cd` |
-| `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` |
+| `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` (struct-based by default; use `--no-auth` for legacy function-based stub) |
+| `grove make:seeder <Name>` | Scaffold a database seeder in `internal/database/seeders/` |
+| `grove make:seed` | Scaffold a seed runner entrypoint in `cmd/seed/main.go` (used by `grove db:seed`) |
 | `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
 | `grove make:migration <name>` | Generate a SQL migration via Atlas diff (after editing your model) |
+| `grove db:seed` | Run database seeders via `go run ./cmd/seed` |
 | `grove make:resource <Name>` | Scaffold model + controller + DTO in one shot |
 | `grove make:relations` | Infer and add GORM relationships from foreign keys |
 
@@ -102,6 +105,42 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 #### `grove make:relations`
 
 Infers model relationships from foreign key fields (for example, `UserID`) and adds GORM relation fields automatically.
+
+#### Seeders (`make:seeder`, `make:seed`, `db:seed`)
+
+Grove supports a simple, explicit seeding workflow compatible with `grove-base`.
+
+- `grove make:seeder <Name>` scaffolds a new seeder file in `internal/database/seeders/` following the interface:
+
+  - `Name() string`
+  - `Seed(db *gorm.DB) error`
+
+- `grove make:seed` scaffolds the seed runner entrypoint at `cmd/seed/main.go`. This runner should initialize your app (DB, session, etc.) and call:
+
+  - `internal/database/seeders.Run(app.DB)`
+
+- `grove db:seed` loads `.env` (if present) and runs seeders by executing:
+
+  - `go run ./cmd/seed`
+
+Examples:
+
+```bash
+# 1) Create a new seeder
+grove make:seeder Users
+
+# 2) (Once per project) create the seed runner entrypoint
+grove make:seed
+
+# 3) Run all seeders
+grove db:seed
+
+# Optional: customize runner package or env file
+grove db:seed --package ./cmd/seed
+grove db:seed --env-file .env
+```
+
+> Keep seeders idempotent: running `grove db:seed` multiple times should be safe.
 
 By default, it generates only the **has-many** side on the target model (for example, `PaymentMethods []PaymentMethod` on `User`).  
 Use `--with-belongs-to` to also generate the **belongs-to** side on the source model (for example, `User *User` on `PaymentMethod`).
@@ -278,8 +317,11 @@ grove make:migration create_posts_table
 # 5. Apply the migration
 grove migrate
 
-# 6. Register routes in internal/routes/routes.go
-#    fuego.Post(s, "/posts", controllers.CreatePost)
+# 6. Register routes in internal/routes/routes.go (example)
+#    api := fuego.Group(s, "/api/v1")
+#    posts := fuego.Group(api, "/posts")
+#    postController := controllers.NewPostController(app.Session)
+#    fuego.Post(posts, "/", postController.Create)
 
 # 7. Write tests for your new resource
 grove make:test Post

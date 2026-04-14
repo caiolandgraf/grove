@@ -37,7 +37,9 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:middleware" + colorReset + "  <Name>   Scaffold an HTTP middleware\n" +
 		"    grove " + colorGreen + "make:migration" + colorReset + "   <name>   Generate a migration via atlas migrate diff\n" +
 		"    grove " + colorGreen + "make:resource" + colorReset + "    <Name>   Scaffold model + controller + DTO at once\n" +
-		"    grove " + colorGreen + "make:relations" + colorReset + "             Infer and add GORM relations from foreign keys\n"
+		"    grove " + colorGreen + "make:relations" + colorReset + "             Infer and add GORM relations from foreign keys\n" +
+		"    grove " + colorGreen + "make:seeder" + colorReset + "      <Name>   Scaffold a database seeder\n" +
+		"    grove " + colorGreen + "make:seed" + colorReset + "               Scaffold a seed runner entrypoint (cmd/seed)\n"
 
 	update := "\n" +
 		"  " + colorBold + colorGray + "MAINTENANCE" + colorReset + "\n" +
@@ -55,7 +57,8 @@ func buildBanner() string {
 		"    grove " + colorBlue + "migrate:rollback" + colorReset + "        Rollback the last migration\n" +
 		"    grove " + colorBlue + "migrate:status" + colorReset + "          Show migration status\n" +
 		"    grove " + colorBlue + "migrate:fresh" + colorReset + "           Drop + re-apply all migrations\n" +
-		"    grove " + colorBlue + "migrate:hash" + colorReset + "            Rehash the migrations directory\n"
+		"    grove " + colorBlue + "migrate:hash" + colorReset + "            Rehash the migrations directory\n" +
+		"    grove " + colorBlue + "db:seed" + colorReset + "                Run database seeders\n"
 
 	testing := "\n" +
 		"  " + colorBold + colorGray + "TESTING" + colorReset + "\n" +
@@ -102,6 +105,8 @@ func init() {
 	makeMigrationCmd.GroupID = "generators"
 	makeResourceCmd.GroupID = "generators"
 	makeRelationsCmd.GroupID = "generators"
+	makeSeederCmd.GroupID = "generators"
+	makeSeedRunnerCmd.GroupID = "generators"
 	makeTestCmd.GroupID = "testing"
 
 	rootCmd.AddCommand(makeModelCmd)
@@ -112,6 +117,8 @@ func init() {
 	rootCmd.AddCommand(makeMigrationCmd)
 	rootCmd.AddCommand(makeResourceCmd)
 	rootCmd.AddCommand(makeRelationsCmd)
+	rootCmd.AddCommand(makeSeederCmd)
+	rootCmd.AddCommand(makeSeedRunnerCmd)
 	rootCmd.AddCommand(makeTestCmd)
 
 	// ── Testing ───────────────────────────────────────────────────────────────
@@ -134,12 +141,14 @@ func init() {
 	migrateStatusCmd.GroupID = "database"
 	migrateFreshCmd.GroupID = "database"
 	migrateHashCmd.GroupID = "database"
+	dbSeedCmd.GroupID = "database"
 
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(migrateRollbackCmd)
 	rootCmd.AddCommand(migrateStatusCmd)
 	rootCmd.AddCommand(migrateFreshCmd)
 	rootCmd.AddCommand(migrateHashCmd)
+	rootCmd.AddCommand(dbSeedCmd)
 
 	// ── Setup ─────────────────────────────────────────────────────────────────
 	setupCmd.GroupID = "setup"
