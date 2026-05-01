@@ -568,7 +568,7 @@ func printSetupSuccess(projectName string) {
 		"    %s3.%s %s\n",
 		colorGray,
 		colorReset,
-		colorGreen+"grove dev"+colorReset,
+		colorGreen+"grove up"+colorReset,
 	)
 	fmt.Printf(
 		"    %s4.%s %s  %s\n",
