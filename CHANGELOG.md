@@ -9,15 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - `grove up` to start Docker Compose and then run `grove dev`.
+- `grove down` to stop Docker Compose services.
 - `grove start` to build and run the compiled binary.
 - `grove setup` prompt for project name when omitted.
 - Interactive observability selection in `grove setup` (Jaeger, Prometheus, Grafana, Loki, Promtail).
 - Automatic `.env.example` updates for `OTEL_ENABLED` and `METRICS_ENABLED` during setup.
 - Support for `infra/compose.yml` (and fallbacks) when configuring or running Compose.
+- Auto-build and caching of the `atlas-provider-gorm` binary for faster `grove make:migration`.
 
 ### Changed
 - Default `grove dev` watcher is now scoped to `cmd/` and `internal/` when present, with a larger exclude list for better performance.
 - Default debounce increased to 100 ms to reduce rebuild thrash.
+- `grove migrate` and `grove migrate:status` now print a completion badge on success.
 - Project structure documentation updated for the new `internal/app/` layout and `infra/compose.yml`.
 
 ### Fixed

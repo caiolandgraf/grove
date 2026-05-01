@@ -192,6 +192,7 @@ grove make:relations --model PaymentMethod --model Order
 | Command | Description |
 |---|---|
 | `grove up` | Start docker compose and run the dev server |
+| `grove down` | Stop docker compose services |
 | `grove dev` | Hot reload — watch, build & restart on every save (no external tools required) |
 | `grove dev:air` | Start the development server using Air for hot-reload |
 | `grove build` | Compile the application binary to `./bin/app` |

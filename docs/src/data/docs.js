@@ -224,6 +224,22 @@ grove setup  # prompt for project name + observability`
         ]
       },
       {
+        id: 'cmd-down',
+        title: 'grove down',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Stops the Docker Compose stack started by <code>grove up</code>. It uses the same compose file detection and passes <code>.env</code> when present.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove down`
+          }
+        ]
+      },
+      {
         id: 'cmd-dev',
         title: 'grove dev',
         blocks: [

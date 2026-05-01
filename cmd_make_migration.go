@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -62,6 +63,10 @@ func runMakeMigration(cmd *cobra.Command, args []string) error {
 		)
 	}
 
+	if err := ensureAtlasGormProvider(); err != nil {
+		return err
+	}
+
 	atlasArgs := []string{
 		"migrate", "diff", name,
 		"--env", makeMigrationEnv,
@@ -102,4 +107,156 @@ func runMakeMigration(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+func ensureAtlasGormProvider() error {
+	const providerExec = "./.grove/bin/atlas-gorm"
+	const providerPath = ".grove/bin/atlas-gorm"
+
+	if _, err := os.Stat("atlas.hcl"); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read atlas.hcl: %w", err)
+	}
+
+	if _, err := os.Stat(providerPath); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Printf(
+				"  %sPreparing Atlas provider%s %s\n",
+				colorGray, colorReset,
+				gray("(ariga.io/atlas-provider-gorm)"),
+			)
+			if err := ensureDir(filepath.Dir(providerPath)); err != nil {
+				return fmt.Errorf("failed to create provider dir: %w", err)
+			}
+			if _, err := exec.LookPath("go"); err != nil {
+				return fmt.Errorf("go binary not found in PATH")
+			}
+
+			bw := newBuildOutputWriter(os.Stderr)
+			c := exec.Command(
+				"go",
+				"build",
+				"-o",
+				providerPath,
+				"ariga.io/atlas-provider-gorm",
+			)
+			c.Stdout = bw
+			c.Stderr = bw
+
+			if err := c.Run(); err != nil {
+				fmt.Println()
+				return fmt.Errorf("failed to build atlas provider: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to stat %s: %w", providerPath, err)
+		}
+	}
+
+	updated, err := updateAtlasHCLProgram(providerExec)
+	if err != nil {
+		return err
+	}
+	if updated {
+		fmt.Printf(
+			"  %sUsing cached Atlas provider%s %s\n",
+			colorGray, colorReset,
+			gray("("+providerExec+")"),
+		)
+	}
+
+	return nil
+}
+
+func updateAtlasHCLProgram(providerExec string) (bool, error) {
+	path := "atlas.hcl"
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+
+	src := string(content)
+	if strings.Contains(src, providerExec) {
+		return false, nil
+	}
+
+	lines := strings.Split(src, "\n")
+	inGorm := false
+
+	for i := 0; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "data \"external_schema\" \"gorm\"") {
+			inGorm = true
+			continue
+		}
+
+		if inGorm && strings.HasPrefix(trimmed, "program = [") {
+			idx := strings.Index(lines[i], "program")
+			if idx < 0 {
+				return false, fmt.Errorf("malformed program line in %s", path)
+			}
+			indent := lines[i][:idx]
+			j := i + 1
+			var tokens []string
+			for j < len(lines) {
+				line := strings.TrimSpace(lines[j])
+				if line == "]" {
+					break
+				}
+				if line != "" {
+					token := strings.TrimSuffix(line, ",")
+					token = strings.Trim(token, "\"")
+					if token != "" {
+						tokens = append(tokens, token)
+					}
+				}
+				j++
+			}
+
+			if j >= len(lines) {
+				return false, fmt.Errorf("malformed program block in %s", path)
+			}
+
+			loadIndex := -1
+			for idx, token := range tokens {
+				if token == "load" {
+					loadIndex = idx
+					break
+				}
+			}
+
+			var tail []string
+			if loadIndex >= 0 && loadIndex+1 < len(tokens) {
+				tail = tokens[loadIndex+1:]
+			}
+
+			newTokens := []string{providerExec, "load"}
+			newTokens = append(newTokens, tail...)
+
+			var newLines []string
+			newLines = append(newLines, indent+"program = [")
+			for _, token := range newTokens {
+				newLines = append(newLines, indent+"  \""+token+"\",")
+			}
+			newLines = append(newLines, indent+"]")
+
+			lines = append(lines[:i], append(newLines, lines[j+1:]...)...)
+			if err := os.WriteFile(
+				path,
+				[]byte(strings.Join(lines, "\n")),
+				0o644,
+			); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+
+		if inGorm && trimmed == "}" {
+			inGorm = false
+		}
+	}
+
+	fmt.Println(warn("Could not update atlas.hcl to use cached provider."))
+	return false, nil
 }

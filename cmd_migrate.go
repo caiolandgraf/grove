@@ -54,10 +54,18 @@ func runMigrate(cmd *cobra.Command, args []string) error {
 	)
 	fmt.Println()
 
-	return runAtlas("apply pending migrations",
+	if err := runAtlas("apply pending migrations",
 		"migrate", "apply",
 		"--env", migrateEnv,
-	)
+	); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Println(done("Migration run complete"))
+	fmt.Println()
+
+	return nil
 }
 
 // ──────────────────────────────────────────────
@@ -149,10 +157,18 @@ func runMigrateStatus(cmd *cobra.Command, args []string) error {
 	)
 	fmt.Println()
 
-	return runAtlas("check migration status",
+	if err := runAtlas("check migration status",
 		"migrate", "status",
 		"--env", migrateStatusEnv,
-	)
+	); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Println(done("Migration status checked"))
+	fmt.Println()
+
+	return nil
 }
 
 // ──────────────────────────────────────────────

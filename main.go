@@ -48,6 +48,7 @@ func buildBanner() string {
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
 		"    grove " + colorBlue + "up" + colorReset + "                Start docker compose and run the dev server\n" +
+		"    grove " + colorBlue + "down" + colorReset + "              Stop docker compose services\n" +
 		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart; formats JSON logs & hints on error\n" +
 		"    grove " + colorBlue + "dev:air" + colorReset + "           Start the development server using Air for hot-reload\n" +
 		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n" +
@@ -130,12 +131,14 @@ func init() {
 
 	// ── Server & Build ────────────────────────────────────────────────────────
 	upCmd.GroupID = "server"
+	downCmd.GroupID = "server"
 	devCmd.GroupID = "server"
 	devAirCmd.GroupID = "server"
 	buildCmd.GroupID = "server"
 	startCmd.GroupID = "server"
 
 	rootCmd.AddCommand(upCmd)
+	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(devAirCmd)
 	rootCmd.AddCommand(buildCmd)
