@@ -455,8 +455,8 @@ func (bw *buildOutputWriter) writeLine(line string) {
 //
 //   - JSON log lines (slog / zap / zerolog structured output) are parsed and
 //     rendered as a human-readable coloured line.
-//   - "panic:" lines and the goroutine stack trace that follows are rendered
-//     in a red block with a clear PANIC badge.
+//   - "panic:", "fatal error:" and "http: panic serving" lines (and the stack
+//     trace that follows) are rendered in a red block with a clear PANIC badge.
 //   - All other lines are indented and passed through as-is.
 type appOutputWriter struct {
 	w        *os.File
@@ -522,36 +522,29 @@ func (aw *appOutputWriter) writeLine(line string) {
 	}
 
 	// ── panic accumulation ────────────────────────────────────────────────────
-	// Once we see "panic:" we collect lines until the goroutine dump ends
-	// (i.e. we hit a line that is not a stack frame, continuation or blank).
-	if strings.HasPrefix(trimmed, "panic:") {
-		aw.inPanic = true
-		aw.panicBuf = []string{trimmed}
-		return
-	}
-
 	if aw.inPanic {
 		// Goroutine header, stack frames, file:line references all belong to
-		// the panic dump.  We keep collecting until the line doesn't look like
+		// the panic dump. We keep collecting until the line doesn't look like
 		// part of a stack trace anymore.
-		isStackLine := strings.HasPrefix(trimmed, "goroutine ") ||
-			strings.HasPrefix(trimmed, "main.") ||
-			strings.HasPrefix(trimmed, "runtime.") ||
-			strings.HasPrefix(line, "\t") ||
-			strings.Contains(trimmed, ".go:")
-
-		if isStackLine {
+		if isPanicStackLine(line, trimmed) {
 			aw.panicBuf = append(aw.panicBuf, line)
 			return
 		}
 
 		// End of panic dump — flush everything at once.
 		aw.flushPanic()
+		if isPanicTrailerLine(trimmed) {
+			return
+		}
 	}
 
 	// ── JSON structured log line ──────────────────────────────────────────────
 	if len(trimmed) > 0 && trimmed[0] == '{' {
-		if rendered, allText, ok := renderJSONLog(trimmed); ok {
+		if rendered, allText, msg, ok := renderJSONLog(trimmed); ok {
+			if isPanicMessage(msg) {
+				aw.flushPanicFromMessage(msg)
+				return
+			}
 			fmt.Fprintln(aw.w, rendered)
 			aw.detectHints(allText)
 			return
@@ -563,9 +556,22 @@ func (aw *appOutputWriter) writeLine(line string) {
 	//   time=2006-01-02T15:04:05.000Z level=INFO msg="hello" key=val
 	// Also matches logfmt-style lines that lack a time= prefix as long as
 	// they contain at least level= and msg= (or message=).
-	if rendered, allText, ok := renderSlogText(trimmed); ok {
+	if rendered, allText, msg, ok := renderSlogText(trimmed); ok {
+		if isPanicMessage(msg) {
+			aw.flushPanicFromMessage(msg)
+			return
+		}
 		fmt.Fprintln(aw.w, rendered)
 		aw.detectHints(allText)
+		return
+	}
+
+	// ── panic start ───────────────────────────────────────────────────────────
+	// Once we see a panic/fatal line we collect lines until the goroutine dump
+	// ends (i.e. we hit a line that is not a stack frame, continuation or blank).
+	if isPanicStartLine(trimmed) {
+		aw.inPanic = true
+		aw.panicBuf = []string{trimmed}
 		return
 	}
 
@@ -585,10 +591,23 @@ func (aw *appOutputWriter) flushPanic() {
 	panicMsg := ""
 	for _, l := range aw.panicBuf {
 		trimmed := strings.TrimSpace(l)
-		if strings.HasPrefix(trimmed, "panic:") {
+		switch {
+		case strings.HasPrefix(trimmed, "panic:"):
 			panicMsg = strings.ToLower(
 				strings.TrimSpace(strings.TrimPrefix(trimmed, "panic:")),
 			)
+		case strings.HasPrefix(trimmed, "fatal error:"):
+			panicMsg = strings.ToLower(
+				strings.TrimSpace(strings.TrimPrefix(trimmed, "fatal error:")),
+			)
+		case strings.Contains(trimmed, "panic serving"):
+			if idx := strings.LastIndex(trimmed, ":"); idx >= 0 {
+				panicMsg = strings.ToLower(strings.TrimSpace(trimmed[idx+1:]))
+			} else {
+				panicMsg = strings.ToLower(trimmed)
+			}
+		}
+		if panicMsg != "" {
 			break
 		}
 	}
@@ -597,16 +616,42 @@ func (aw *appOutputWriter) flushPanic() {
 	fmt.Fprintf(aw.w, "  %s\n", badge(ansiBgRed, "PANIC"))
 	fmt.Fprintln(aw.w)
 
-	for _, l := range aw.panicBuf {
-		trimmed := strings.TrimSpace(l)
+	for _, raw := range aw.panicBuf {
+		line, skip := normalizePanicLine(raw)
+		if skip {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			fmt.Fprintln(aw.w)
 			continue
 		}
-		// First line is the panic message itself — bold red.
-		if strings.HasPrefix(trimmed, "panic:") {
+		// Panic / fatal header line — bold red.
+		switch {
+		case strings.HasPrefix(trimmed, "panic:"):
 			msg := strings.TrimSpace(strings.TrimPrefix(trimmed, "panic:"))
 			fmt.Fprintf(aw.w, "  %s%s%s\n", ansiRed+ansiBold, msg, ansiReset)
+			continue
+		case strings.HasPrefix(trimmed, "fatal error:"):
+			msg := strings.TrimSpace(
+				strings.TrimPrefix(trimmed, "fatal error:"),
+			)
+			fmt.Fprintf(
+				aw.w,
+				"  %s%s%s\n",
+				ansiRed+ansiBold,
+				"fatal error: "+msg,
+				ansiReset,
+			)
+			continue
+		case strings.Contains(trimmed, "panic serving"):
+			fmt.Fprintf(
+				aw.w,
+				"  %s%s%s\n",
+				ansiRed+ansiBold,
+				trimmed,
+				ansiReset,
+			)
 			continue
 		}
 		// Goroutine header.
@@ -615,17 +660,17 @@ func (aw *appOutputWriter) flushPanic() {
 			continue
 		}
 		// File/line references (indented with tab in original).
-		if strings.HasPrefix(l, "\t") {
+		if strings.HasPrefix(line, "\t") {
 			fmt.Fprintf(
 				aw.w,
 				"    %s%s%s\n",
 				ansiDim+ansiGray,
-				trimmed,
+				strings.TrimSpace(line),
 				ansiReset,
 			)
 			continue
 		}
-		// Function names.
+		// Function names / other stack lines.
 		fmt.Fprintf(aw.w, "  %s%s%s\n", ansiGray, trimmed, ansiReset)
 	}
 
@@ -646,18 +691,126 @@ func (aw *appOutputWriter) flushPanic() {
 	aw.panicBuf = nil
 }
 
+func (aw *appOutputWriter) flushPanicFromMessage(msg string) {
+	aw.inPanic = true
+	aw.panicBuf = nil
+
+	for _, l := range strings.Split(msg, "\n") {
+		aw.panicBuf = append(aw.panicBuf, l)
+	}
+
+	aw.flushPanic()
+}
+
+func isPanicStartLine(trimmed string) bool {
+	return strings.HasPrefix(trimmed, "panic:") ||
+		strings.HasPrefix(trimmed, "fatal error:") ||
+		strings.Contains(trimmed, "panic serving")
+}
+
+func isPanicMessage(msg string) bool {
+	trimmed := strings.TrimSpace(msg)
+	return strings.HasPrefix(trimmed, "panic:") ||
+		strings.HasPrefix(trimmed, "fatal error:") ||
+		strings.Contains(trimmed, "panic serving") ||
+		strings.Contains(msg, "\ngoroutine ")
+}
+
+func isPanicTrailerLine(trimmed string) bool {
+	switch strings.TrimSpace(trimmed) {
+	case "}", "},", "\"}", "\"},", "\"":
+		return true
+	default:
+		return false
+	}
+}
+
+func isPanicStackLine(line, trimmed string) bool {
+	if strings.HasPrefix(trimmed, "goroutine ") ||
+		strings.HasPrefix(trimmed, "created by ") ||
+		strings.HasPrefix(trimmed, "panic(") ||
+		strings.HasPrefix(trimmed, "runtime.") ||
+		strings.HasPrefix(trimmed, "main.") ||
+		strings.HasPrefix(line, "\t") ||
+		strings.Contains(trimmed, ".go:") {
+		return true
+	}
+
+	// Function names typically have no spaces, include parentheses, and end
+	// with a closing ")".
+	return strings.Contains(trimmed, "(") &&
+		strings.HasSuffix(trimmed, ")") &&
+		!strings.Contains(trimmed, " ")
+}
+
+// normalizePanicLine strips noisy machine offsets and hides raw hex addresses
+// so stack traces are easier to read.
+func normalizePanicLine(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if strings.HasPrefix(trimmed, "panic(") && strings.Contains(trimmed, "0x") {
+		return "", true
+	}
+
+	if msg := extractJSONMsgFragment(line); msg != "" {
+		line = msg
+	}
+
+	line = strings.TrimSuffix(line, "\"}")
+	line = strings.TrimSuffix(line, "\"},")
+	line = strings.TrimSuffix(line, "\"")
+	line = strings.TrimSuffix(line, "}")
+
+	if idx := strings.LastIndex(line, " +0x"); idx >= 0 {
+		line = line[:idx]
+	}
+
+	line = stripHexArgs(line)
+
+	return line, false
+}
+
+func stripHexArgs(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if strings.Contains(trimmed, "0x") &&
+		strings.Contains(trimmed, "(") &&
+		!strings.Contains(trimmed, ".go:") &&
+		!strings.HasPrefix(trimmed, "goroutine ") &&
+		!strings.HasPrefix(trimmed, "created by ") {
+
+		if idx := strings.Index(trimmed, "("); idx > 0 {
+			prefix := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			return prefix + trimmed[:idx] + "(...)"
+		}
+	}
+	return line
+}
+
+func extractJSONMsgFragment(line string) string {
+	keys := []string{"\"msg\":\"", "\"message\":\"", "\"Message\":\""}
+	for _, key := range keys {
+		if idx := strings.Index(line, key); idx >= 0 {
+			msg := line[idx+len(key):]
+			if end := strings.LastIndex(msg, "\""); end >= 0 {
+				msg = msg[:end]
+			}
+			return msg
+		}
+	}
+	return ""
+}
+
 // renderSlogText attempts to parse a log/slog TextHandler (or logfmt) line of
 // the form:
 //
 //	time=2006-01-02T15:04:05.000Z level=INFO msg="hello world" key=val key2="v 2"
 //
-// It returns (rendered, allText, true) on success, ("", "", false) if the line
-// does not look like a slog text entry (must have at least level= and msg= /
-// message= keys).
-func renderSlogText(line string) (string, string, bool) {
+// It returns (rendered, allText, msg, true) on success, ("", "", "", false)
+// if the line does not look like a slog text entry (must have at least level=
+// and msg= / message= keys).
+func renderSlogText(line string) (string, string, string, bool) {
 	kv := parseSlogKV(line)
 	if len(kv) == 0 {
-		return "", "", false
+		return "", "", "", false
 	}
 
 	level := firstOf(kv, "level", "lvl", "severity")
@@ -666,7 +819,7 @@ func renderSlogText(line string) (string, string, bool) {
 
 	// Require at least level + msg to treat this as a structured log line.
 	if level == "" || msg == "" {
-		return "", "", false
+		return "", "", "", false
 	}
 
 	// ── Level badge ───────────────────────────────────────────────────────────
@@ -738,7 +891,7 @@ func renderSlogText(line string) (string, string, bool) {
 	return fmt.Sprintf(
 		"  %s%s%s  %s%s",
 		timeStr, levelBadge, ansiReset, msgPart, extra,
-	), allText, true
+	), allText, msg, true
 }
 
 // parseSlogKV parses a slog TextHandler / logfmt line into an ordered map.
@@ -849,15 +1002,15 @@ func firstOf(m map[string]string, keys ...string) string {
 
 // renderJSONLog attempts to parse line as a structured log entry (slog/zap/
 // zerolog) and renders it as a human-readable coloured string.
-// Returns (rendered, true) on success, ("", false) if line is not valid JSON
-// or doesn't look like a log entry.
+// Returns (rendered, allText, msg, true) on success, ("", "", "", false)
+// if line is not valid JSON or doesn't look like a log entry.
 //
 // For known error patterns (database connection refused, etc.) an actionable
 // hint is printed to os.Stdout immediately after the log line.
-func renderJSONLog(line string) (string, string, bool) {
+func renderJSONLog(line string) (string, string, string, bool) {
 	var entry map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		return "", "", false
+		return "", "", "", false
 	}
 
 	// ── Extract standard fields ───────────────────────────────────────────────
@@ -866,7 +1019,7 @@ func renderJSONLog(line string) (string, string, bool) {
 	ts := extractString(entry, "time", "ts", "timestamp", "Time")
 
 	if msg == "" {
-		return "", "", false
+		return "", "", "", false
 	}
 
 	// ── Detect known error patterns and queue a hint ──────────────────────────
@@ -964,7 +1117,7 @@ func renderJSONLog(line string) (string, string, bool) {
 		ansiReset,
 		msgPart,
 		extra,
-	), allText, true
+	), allText, msg, true
 }
 
 // extractString returns the first non-empty string value found for any of the

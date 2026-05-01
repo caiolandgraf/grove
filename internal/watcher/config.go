@@ -39,22 +39,51 @@ type Config struct {
 // DefaultConfig returns a Config populated with sensible out-of-the-box
 // values so that grove dev works with zero configuration.
 func DefaultConfig() Config {
+	watchDirs := defaultWatchDirs()
 	return Config{
 		Root:      ".",
 		TmpDir:    ".grove/tmp",
 		Bin:       ".grove/tmp/app",
 		BuildCmd:  "go build -o .grove/tmp/app ./cmd/api/",
-		WatchDirs: []string{"."},
+		WatchDirs: watchDirs,
 		Exclude: []string{
 			".grove",
 			"vendor",
 			"node_modules",
 			".git",
 			"tests",
+			"infra",
+			"migrations",
+			"bin",
+			"docs",
+			"tmp",
+			"dist",
 		},
 		Extensions: []string{".go"},
-		DebounceMs: 50,
+		DebounceMs: 100,
 	}
+}
+
+func defaultWatchDirs() []string {
+	var watch []string
+	if dirExists("cmd") {
+		watch = append(watch, "cmd")
+	}
+	if dirExists("internal") {
+		watch = append(watch, "internal")
+	}
+	if len(watch) == 0 {
+		return []string{"."}
+	}
+	return watch
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
 }
 
 // groveFile mirrors the top-level structure of grove.toml so that the TOML

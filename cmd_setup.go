@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"fmt"
 	"io"
 	"io/fs"
@@ -31,15 +32,18 @@ const (
 var setupModuleFlag string
 
 var setupCmd = &cobra.Command{
-	Use:   "setup <project-name>",
+	Use:   "setup [project-name]",
 	Short: "Scaffold a new Grove project from the official template",
 	Long: bold("setup") + ` downloads and scaffolds a complete Grove project
 from the official template repository on GitHub.
 
+If you omit the project name, Grove will prompt you for it.
+
 ` + colorGray + `Examples:` + colorReset + `
   grove setup my-api
-  grove setup my-api --module github.com/acme/my-api`,
-	Args: cobra.ExactArgs(1),
+  grove setup my-api --module github.com/acme/my-api
+  grove setup  # prompt for project name`,
+	Args: cobra.RangeArgs(0, 1),
 	RunE: runSetup,
 }
 
@@ -121,7 +125,10 @@ func (s *step) fail(extra string) {
 // ──────────────────────────────────────────────
 
 func runSetup(_ *cobra.Command, args []string) error {
-	projectName := args[0]
+	projectName, err := resolveProjectName(args)
+	if err != nil {
+		return err
+	}
 
 	modulePath := setupModuleFlag
 	if modulePath == "" {
@@ -132,6 +139,10 @@ func runSetup(_ *cobra.Command, args []string) error {
 	if _, err := os.Stat(projectName); err == nil {
 		return fmt.Errorf("directory %q already exists", projectName)
 	}
+
+	printSetupHeader(projectName, modulePath)
+
+	obs := promptObservability()
 
 	// Hide cursor for the entire setup flow
 	fmt.Print("\033[?25l")
@@ -144,8 +155,6 @@ func runSetup(_ *cobra.Command, args []string) error {
 			_ = os.RemoveAll(projectName)
 		}
 	}()
-
-	printSetupHeader(projectName, modulePath)
 
 	// ── Step 1: Download ───────────────────────────────────────────────────
 	s := startStep("Downloading template")
@@ -166,7 +175,15 @@ func runSetup(_ *cobra.Command, args []string) error {
 	}
 	s.succeed(fmt.Sprintf("%d files", fileCount))
 
-	// ── Step 3: Configure module ───────────────────────────────────────────
+	// ── Step 3: Configure observability ───────────────────────────────────
+	s = startStep("Configuring observability")
+	if err := configureObservability(projectName, obs); err != nil {
+		s.fail(err.Error())
+		return fmt.Errorf("observability configuration failed: %w", err)
+	}
+	s.succeed(obs.summary())
+
+	// ── Step 4: Configure module ───────────────────────────────────────────
 	s = startStep("Configuring module")
 	if err := configureModule(projectName, modulePath); err != nil {
 		s.fail(err.Error())
@@ -174,7 +191,7 @@ func runSetup(_ *cobra.Command, args []string) error {
 	}
 	s.succeed(modulePath)
 
-	// ── Step 4: Install dependencies ──────────────────────────────────────
+	// ── Step 5: Install dependencies ──────────────────────────────────────
 	s = startStep("Installing dependencies")
 	start := time.Now()
 	if err := runGoModTidy(projectName); err != nil {
@@ -183,7 +200,7 @@ func runSetup(_ *cobra.Command, args []string) error {
 	}
 	s.succeed(fmtDuration(time.Since(start)))
 
-	// ── Step 5: Add gest library to go.mod ────────────────────────────────
+	// ── Step 6: Add gest library to go.mod ────────────────────────────────
 	s = startStep("Installing gest")
 	start = time.Now()
 	if err := runGoGetGest(projectName); err != nil {
@@ -193,7 +210,7 @@ func runSetup(_ *cobra.Command, args []string) error {
 		s.succeed(fmtDuration(time.Since(start)))
 	}
 
-	// ── Step 6: Install gest CLI globally ─────────────────────────────────
+	// ── Step 7: Install gest CLI globally ─────────────────────────────────
 	s = startStep("Installing gest CLI")
 	start = time.Now()
 	if err := runGoInstallGestCLI(); err != nil {
@@ -206,6 +223,50 @@ func runSetup(_ *cobra.Command, args []string) error {
 	succeeded = true
 	printSetupSuccess(projectName)
 	return nil
+}
+
+func resolveProjectName(args []string) (string, error) {
+	if len(args) > 0 {
+		name := strings.TrimSpace(args[0])
+		if name == "" {
+			return "", fmt.Errorf("project name cannot be empty")
+		}
+		return name, nil
+	}
+
+	return promptProjectName()
+}
+
+func promptProjectName() (string, error) {
+	info, err := os.Stdin.Stat()
+	if err != nil || (info.Mode()&os.ModeCharDevice) == 0 {
+		return "", fmt.Errorf(
+			"project name is required when stdin is not a TTY",
+		)
+	}
+
+	fmt.Println()
+	fmt.Println("  " + bold("Project name"))
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Printf("  %s ", gray("Enter project name:"))
+		input, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return "", err
+		}
+
+		name := strings.TrimSpace(input)
+		if name == "" {
+			fmt.Println("  " + warn("Please enter a project name."))
+			if err == io.EOF {
+				return "", fmt.Errorf("project name cannot be empty")
+			}
+			continue
+		}
+
+		return name, nil
+	}
 }
 
 // ──────────────────────────────────────────────

@@ -34,6 +34,11 @@ grove --help      # full command reference`
           {
             type: 'note',
             kind: 'info',
+            text: 'Documentation version: <strong>v2.0.0</strong>.'
+          },
+          {
+            type: 'note',
+            kind: 'info',
             text: 'Grove requires the <strong>Atlas CLI</strong> for all migration-related commands. Install it from <a href="https://atlasgo.io/docs" target="_blank">atlasgo.io</a>.'
           }
         ]
@@ -52,6 +57,7 @@ grove --help      # full command reference`
             label: 'terminal',
             code: `# 1. Scaffold a new project
 grove setup my-api
+# or: grove setup (prompts for name + observability)
 
 # 2. Enter the project directory
 cd my-api
@@ -60,7 +66,10 @@ cd my-api
 cp .env.example .env
 # edit .env with your database credentials
 
-# 4. Start the development server with built-in hot reload
+# 4. Start infra + dev server (docker compose + hot reload)
+grove up
+
+# — or start only the dev server —
 grove dev
 
 # — or, if you prefer Air for hot-reload —
@@ -163,10 +172,14 @@ grove dev:air`
             text: 'Downloads and scaffolds a complete Grove project from the official template repository on GitHub.'
           },
           {
+            type: 'paragraph',
+            text: 'If you omit the project name, Grove will prompt for it and ask which observability services to enable (Jaeger, Prometheus, Grafana, Loki, Promtail). The selections update <code>.env.example</code> (<code>OTEL_ENABLED</code> / <code>METRICS_ENABLED</code>) and <code>infra/compose.yml</code>.'
+          },
+          {
             type: 'code',
             lang: 'bash',
             label: 'terminal',
-            code: `grove setup <project-name> [--module <go-module-path>]`
+            code: `grove setup [project-name] [--module <go-module-path>]`
           },
           {
             type: 'table',
@@ -184,7 +197,29 @@ grove dev:air`
             lang: 'bash',
             label: 'examples',
             code: `grove setup my-api
-grove setup my-api --module github.com/acme/my-api`
+grove setup my-api --module github.com/acme/my-api
+grove setup  # prompt for project name + observability`
+          }
+        ]
+      },
+      {
+        id: 'cmd-up',
+        title: 'grove up',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Starts infrastructure via <code>docker compose</code> and then launches <code>grove dev</code>. It detects <code>infra/compose.yml</code> (or <code>docker-compose.yml</code>) and passes <code>.env</code> to Compose when present.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove up`
+          },
+          {
+            type: 'note',
+            kind: 'tip',
+            text: 'If you only want the dev server (no infra), use <code>grove dev</code>.'
           }
         ]
       },
@@ -374,6 +409,40 @@ debounce_ms = 50`
             label: 'examples',
             code: `grove build
 grove build -o ./bin/my-api`
+          }
+        ]
+      },
+      {
+        id: 'cmd-start',
+        title: 'grove start',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Builds the application and runs the resulting binary. Useful for a quick local smoke test without hot reload.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove start [--output <path>]`
+          },
+          {
+            type: 'table',
+            head: ['Flag', 'Default', 'Description'],
+            rows: [
+              [
+                '<code>-o</code>, <code>--output</code>',
+                '<code>./bin/app</code>',
+                'Output path for the compiled binary'
+              ]
+            ]
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'examples',
+            code: `grove start
+grove start -o ./bin/my-api`
           }
         ]
       },
@@ -1414,20 +1483,20 @@ func TestPost(t *testing.T) {
 │       └── main.go              # Entry point — wires everything together
 ├── internal/
 │   ├── app/                     # Shared singletons (DB, Redis, Session, Metrics)
-│   ├── config/                  # Infrastructure initializers (DB, Redis, OTel, etc.)
+│   │   ├── config/              # Infrastructure initializers (DB, Redis, OTel, etc.)
+│   │   └── middleware/          # HTTP middlewares (CORS, session, observability)
 │   ├── controllers/             # fuego route handlers
 │   ├── database/                # Generic GORM repository
 │   ├── dto/                     # Request and response types
-│   ├── middleware/              # HTTP middlewares (CORS, session, observability)
 │   ├── models/                  # GORM models
 │   ├── routes/                  # Route registration
 │   └── tests/                   # gest v2 test files
 │       └── user_test.go         # Example test (generated by grove make:test)
 ├── migrations/                  # Atlas SQL migrations
 ├── infra/                       # Observability stack config (Prometheus, Grafana, Loki, Jaeger)
+│   └── compose.yml              # Docker compose stack
 ├── .env.example                 # Committed environment template
 ├── atlas.hcl                    # Atlas configuration
-├── docker-compose.yml           # Full observability stack
 └── grove.toml                   # Grove dev server configuration`
           },
           {
@@ -1447,8 +1516,12 @@ func TestPost(t *testing.T) {
                 'Shared singletons: DB, Redis, session store, metrics — initialized once at startup'
               ],
               [
-                '<code>internal/config/</code>',
+                '<code>internal/app/config/</code>',
                 'Infrastructure initializers for DB, Redis, OpenTelemetry and other external services'
+              ],
+              [
+                '<code>internal/app/middleware/</code>',
+                'HTTP middlewares: CORS, session, observability, auth, etc.'
               ],
               [
                 '<code>internal/controllers/</code>',
@@ -1462,10 +1535,7 @@ func TestPost(t *testing.T) {
                 '<code>internal/dto/</code>',
                 'Request and response structs — decoupled from GORM models'
               ],
-              [
-                '<code>internal/middleware/</code>',
-                'HTTP middlewares: CORS, session, observability, auth, etc.'
-              ],
+
               [
                 '<code>internal/models/</code>',
                 'GORM models with typed repository accessors'
@@ -1487,7 +1557,7 @@ func TestPost(t *testing.T) {
                 'Observability stack configuration: Prometheus, Grafana, Loki, Jaeger'
               ],
               [
-                '<code>docker-compose.yml</code>',
+                '<code>infra/compose.yml</code>',
                 'Spins up the full observability stack locally with a single command'
               ],
               [

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "1.5.3"
+const version = "2.0.0"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -47,9 +47,11 @@ func buildBanner() string {
 
 	server := "\n" +
 		"  " + colorBold + colorGray + "SERVER" + colorReset + "\n" +
+		"    grove " + colorBlue + "up" + colorReset + "                Start docker compose and run the dev server\n" +
 		"    grove " + colorBlue + "dev" + colorReset + "               Hot reload — watch, build & restart; formats JSON logs & hints on error\n" +
 		"    grove " + colorBlue + "dev:air" + colorReset + "           Start the development server using Air for hot-reload\n" +
-		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n"
+		"    grove " + colorBlue + "build" + colorReset + "             Compile the application to a binary\n" +
+		"    grove " + colorBlue + "start" + colorReset + "             Build and start the binary\n"
 
 	database := "\n" +
 		"  " + colorBold + colorGray + "DATABASE" + colorReset + "\n" +
@@ -127,13 +129,17 @@ func init() {
 	rootCmd.AddCommand(testCmd)
 
 	// ── Server & Build ────────────────────────────────────────────────────────
+	upCmd.GroupID = "server"
 	devCmd.GroupID = "server"
 	devAirCmd.GroupID = "server"
 	buildCmd.GroupID = "server"
+	startCmd.GroupID = "server"
 
+	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(devAirCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(startCmd)
 
 	// ── Database ──────────────────────────────────────────────────────────────
 	migrateCmd.GroupID = "database"

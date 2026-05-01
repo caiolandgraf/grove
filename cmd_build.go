@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -39,25 +40,13 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	)
 	fmt.Println()
 
-	if err := ensureDir("bin"); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	start := time.Now()
-
-	bw := newBuildOutputWriter(os.Stderr)
-	c := exec.Command("go", "build", "-o", buildOutput, "./cmd/api/")
-	c.Stdout = bw
-	c.Stderr = bw
-
-	if err := c.Run(); err != nil {
+	elapsed, err := buildBinary(buildOutput)
+	if err != nil {
 		fmt.Println()
 		fmt.Printf("  %s\n", badge(colorBgRed, "BUILD FAILED"))
 		fmt.Println()
 		return fmt.Errorf("")
 	}
-
-	elapsed := time.Since(start)
 
 	fmt.Println()
 	fmt.Println(done(
@@ -67,4 +56,23 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+func buildBinary(output string) (time.Duration, error) {
+	if err := ensureDir(filepath.Dir(output)); err != nil {
+		return 0, fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	start := time.Now()
+
+	bw := newBuildOutputWriter(os.Stderr)
+	c := exec.Command("go", "build", "-o", output, "./cmd/api/")
+	c.Stdout = bw
+	c.Stderr = bw
+
+	if err := c.Run(); err != nil {
+		return time.Since(start), err
+	}
+
+	return time.Since(start), nil
 }
