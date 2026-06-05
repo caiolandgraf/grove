@@ -4,27 +4,25 @@ import (
 	"time"
 
 	"{{.Module}}/internal/app"
-	"{{.Module}}/internal/database"
+	"{{.Module}}/internal/app/database"
 	"gorm.io/gorm"
 )
 
 type {{.Name}} struct {
 	ID        string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+	CreatedAt time.Time      `gorm:"autoCreateTime"                                 json:"created_at"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime"                                 json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index"                                          json:"-"`
+	// Outros campos
 }
 
 func ({{.Name}}) TableName() string { return "{{.TableName}}" }
 
-// {{.NameLower}}Repository is a wrapper around the generic Repository for the {{.Name}} model,
-// allowing custom queries and methods specific to {{.Name}}.
 type {{.NameLower}}Repository struct {
 	*database.Repository[{{.Name}}]
 }
 
-// {{.Name}}s returns a repository scoped to the {{.Name}} model.
-func {{.Name}}s() *{{.NameLower}}Repository {
+func {{.PluralName}}() *{{.NameLower}}Repository {
 	return &{{.NameLower}}Repository{
 		Repository: database.New[{{.Name}}](app.DB),
 	}

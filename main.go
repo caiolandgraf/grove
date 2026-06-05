@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "2.0.0"
+const version = "2.1.0"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -32,6 +32,7 @@ func buildBanner() string {
 	generators := "\n" +
 		"  " + colorBold + colorGray + "GENERATORS" + colorReset + "\n" +
 		"    grove " + colorGreen + "make:model" + colorReset + "       <Name>   Scaffold a GORM model\n" +
+		"    grove " + colorGreen + "make:service" + colorReset + "     <Name>   Scaffold a service\n" +
 		"    grove " + colorGreen + "make:controller" + colorReset + "  <Name>   Scaffold a fuego controller\n" +
 		"    grove " + colorGreen + "make:dto" + colorReset + "         <Name>   Scaffold a DTO request/response file\n" +
 		"    grove " + colorGreen + "make:middleware" + colorReset + "  <Name>   Scaffold an HTTP middleware\n" +
@@ -102,6 +103,7 @@ func init() {
 
 	// ── Generators ────────────────────────────────────────────────────────────
 	makeModelCmd.GroupID = "generators"
+	makeServiceCmd.GroupID = "generators"
 	makeControllerCmd.GroupID = "generators"
 	makeDtoCmd.GroupID = "generators"
 	makeMiddlewareCmd.GroupID = "generators"
@@ -113,6 +115,7 @@ func init() {
 	makeTestCmd.GroupID = "testing"
 
 	rootCmd.AddCommand(makeModelCmd)
+	rootCmd.AddCommand(makeServiceCmd)
 	rootCmd.AddCommand(makeControllerCmd)
 	rootCmd.AddCommand(makeDtoCmd)
 	rootCmd.AddCommand(makeRequestCmd) // hidden backward-compat alias

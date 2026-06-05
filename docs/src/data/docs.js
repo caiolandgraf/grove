@@ -315,8 +315,8 @@ grove setup  # prompt for project name + observability`
 root        = "."
 bin         = ".grove/tmp/app"
 build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
-watch_dirs  = ["."]
-exclude     = [".grove", "vendor", "node_modules", "tests"]
+watch_dirs  = ["cmd", "internal"]
+exclude     = [".grove", "vendor", "node_modules", ".git", "infra", "migrations", "bin", "internal/tests"]
 extensions  = [".go"]
 debounce_ms = 50`
           },
@@ -341,13 +341,13 @@ debounce_ms = 50`
               ],
               [
                 '<code>watch_dirs</code>',
-                '<code>["."]</code>',
+                '<code>["cmd", "internal"]</code>',
                 'Directories to watch for file changes (recursive)'
               ],
               [
                 '<code>exclude</code>',
-                '<code>[".grove", "vendor", "node_modules", "tests"]</code>',
-                'Directory names to ignore (the <code>internal/tests/</code> directory is always excluded so test saves never trigger a rebuild)'
+                '<code>[".grove", "vendor", "node_modules", ".git", "infra", "migrations", "bin", "internal/tests"]</code>',
+                'Directories or path fragments to ignore (the <code>internal/tests/</code> directory is always excluded so test saves never trigger a rebuild)'
               ],
               [
                 '<code>extensions</code>',
@@ -358,6 +358,11 @@ debounce_ms = 50`
                 '<code>debounce_ms</code>',
                 '<code>50</code>',
                 'Milliseconds to wait after the last change before rebuilding'
+              ],
+              [
+                '<code>port_guard</code>',
+                '<code>auto</code>',
+                'If set, Grove will attempt to free the port before starting the app. When omitted, it tries to infer the port from <code>.env</code> (<code>APP_PORT</code>, <code>PORT</code>, <code>BASE_URL</code>, etc.). Set to <code>0</code> to disable.'
               ]
             ]
           },

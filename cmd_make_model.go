@@ -91,6 +91,13 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 		return err
 	}
 
+	// ── service ──────────────────────────────────────────────────────────────
+	if makeModelResource {
+		if err := scaffoldService(name); err != nil {
+			return err
+		}
+	}
+
 	// ── controller ───────────────────────────────────────────────────────────
 	if makeModelWithController {
 		if err := scaffoldController(name, false); err != nil {
@@ -101,6 +108,13 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 	// ── DTO ──────────────────────────────────────────────────────────────────
 	if makeModelWithDTO {
 		if err := scaffoldRequest(name); err != nil {
+			return err
+		}
+	}
+
+	// ── routes wiring ────────────────────────────────────────────────────────
+	if makeModelResource {
+		if err := wireRoutes(name); err != nil {
 			return err
 		}
 	}
@@ -146,11 +160,19 @@ func runMakeModel(_ *cobra.Command, args []string) error {
 	step++
 
 	if makeModelWithController {
-		fmt.Printf(
-			"    %s%d.%s Register routes in %s\n",
-			colorGray, step, colorReset,
-			colorCyan+"internal/routes/"+colorReset,
-		)
+		if makeModelResource {
+			fmt.Printf(
+				"    %s%d.%s Verify routes wired automatically in %s\n",
+				colorGray, step, colorReset,
+				colorCyan+"internal/routes/routes.go"+colorReset,
+			)
+		} else {
+			fmt.Printf(
+				"    %s%d.%s Register routes in %s\n",
+				colorGray, step, colorReset,
+				colorCyan+"internal/routes/"+colorReset,
+			)
+		}
 	}
 
 	fmt.Println()

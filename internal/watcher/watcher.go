@@ -66,7 +66,7 @@ type Watcher struct {
 func New(cfg Config) *Watcher {
 	return &Watcher{
 		cfg:       cfg,
-		proc:      &Process{},
+		proc:      &Process{portGuard: cfg.PortGuard},
 		rebuildCh: make(chan struct{}, 1),
 	}
 }
@@ -192,18 +192,36 @@ func (w *Watcher) shouldHandle(event fsnotify.Event) bool {
 	return false
 }
 
-// isExcluded returns true when any path component of p matches an entry in
-// cfg.Exclude exactly (e.g. ".grove" excludes ".grove/tmp/app").
+// isExcluded returns true when p matches any entry in cfg.Exclude.
+// Exclusions can be either:
+//   - a path component (e.g. ".grove", "vendor")
+//   - a relative path fragment (e.g. "internal/tests")
 func (w *Watcher) isExcluded(p string) bool {
-	// Normalise to forward slashes for consistent splitting on all platforms.
-	parts := strings.Split(filepath.ToSlash(p), "/")
+	path := filepath.ToSlash(p)
+
+	// Path fragment exclusions (contain '/') match anywhere in the path.
+	for _, excl := range w.cfg.Exclude {
+		exclPath := strings.TrimPrefix(filepath.ToSlash(excl), "./")
+		if strings.Contains(exclPath, "/") {
+			if strings.Contains("/"+path+"/", "/"+exclPath+"/") {
+				return true
+			}
+		}
+	}
+
+	// Component exclusions match any individual path segment.
+	parts := strings.Split(path, "/")
 	for _, part := range parts {
 		for _, excl := range w.cfg.Exclude {
+			if strings.Contains(excl, "/") {
+				continue
+			}
 			if part == excl {
 				return true
 			}
 		}
 	}
+
 	return false
 }
 

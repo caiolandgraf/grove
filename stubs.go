@@ -12,6 +12,9 @@ import (
 //go:embed stubs/model.stub
 var modelStub string
 
+//go:embed stubs/service.stub
+var serviceStub string
+
 //go:embed stubs/controller.stub
 var controllerStub string
 

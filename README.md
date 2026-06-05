@@ -390,8 +390,8 @@ Configure behaviour via the optional `[dev]` section in `grove.toml` at the proj
 root        = "."
 bin         = ".grove/tmp/app"
 build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"
-watch_dirs  = ["."]
-exclude     = [".grove", "vendor", "node_modules", "tests"]
+watch_dirs  = ["cmd", "internal"]
+exclude     = [".grove", "vendor", "node_modules", ".git", "infra", "migrations", "bin", "internal/tests"]
 extensions  = [".go"]
 debounce_ms = 50
 ```

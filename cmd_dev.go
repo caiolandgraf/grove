@@ -38,8 +38,8 @@ Configure behaviour via the ` + colorCyan + `[dev]` + colorReset + ` section in 
   ` + colorGray + `root        = "."` + colorReset + `
   ` + colorGray + `bin         = ".grove/tmp/app"` + colorReset + `
   ` + colorGray + `build_cmd   = "go build -o .grove/tmp/app ./cmd/api/"` + colorReset + `
-  ` + colorGray + `watch_dirs  = ["."]` + colorReset + `
-  ` + colorGray + `exclude     = [".grove", "vendor", "node_modules", "tests"]` + colorReset + `
+  ` + colorGray + `watch_dirs  = ["cmd", "internal"]` + colorReset + `
+  ` + colorGray + `exclude     = [".grove", "vendor", "node_modules", ".git", "infra", "migrations", "bin", "internal/tests"]` + colorReset + `
   ` + colorGray + `extensions  = [".go"]` + colorReset + `
   ` + colorGray + `debounce_ms = 50` + colorReset + `
 

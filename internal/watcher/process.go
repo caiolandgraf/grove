@@ -1,9 +1,13 @@
 package watcher
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +25,8 @@ type Process struct {
 	cmd      *exec.Cmd
 	waitCh   chan struct{}   // closed by the reaper goroutine when the process exits
 	lastDone <-chan struct{} // DoneCh of the most recently launched process
+
+	portGuard int
 }
 
 // RestartResult is returned by Restart and lets the caller observe whether the
@@ -61,6 +67,16 @@ func (p *Process) Restart(bin string) (RestartResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	parts := strings.Fields(bin)
+	if len(parts) == 0 {
+		return RestartResult{}, fmt.Errorf("binary path is empty")
+	}
+
+	// ── 0. Clean up stale process from previous runs ───────────────────────
+	if p.cmd == nil {
+		cleanupStaleProcess(parts[0])
+	}
+
 	// ── 1. Gracefully stop the old process ───────────────────────────────────
 	if p.cmd != nil && p.cmd.Process != nil {
 		// Best-effort interrupt — ignore the error (the process may have
@@ -82,7 +98,9 @@ func (p *Process) Restart(bin string) (RestartResult, error) {
 	// ── 2. Launch the new binary ─────────────────────────────────────────────
 	// Split the binary path from any embedded arguments (unusual but safe to
 	// support, e.g. ".grove/tmp/app --port 8080").
-	parts := strings.Fields(bin)
+	if p.portGuard > 0 {
+		guardPort(p.portGuard, parts[0])
+	}
 	var cmd *exec.Cmd
 	if len(parts) == 1 {
 		cmd = exec.Command(parts[0])
@@ -107,6 +125,11 @@ func (p *Process) Restart(bin string) (RestartResult, error) {
 
 	if err := cmd.Start(); err != nil {
 		return RestartResult{}, err
+	}
+
+	pidPath := pidFilePath(cmd.Path)
+	if err := writePidFile(pidPath, cmd.Process.Pid); err != nil {
+		fmt.Fprintf(os.Stderr, "pidfile warning: %v\n", err)
 	}
 
 	// Allocate a fresh channel before handing cmd off to the reaper so there
@@ -138,6 +161,7 @@ func (p *Process) Restart(bin string) (RestartResult, error) {
 		wg.Wait()
 		_ = cmd.Wait()
 		appOut.Flush()
+		_ = removePidFile(pidPath)
 		close(waitCh)
 	}()
 
@@ -216,5 +240,186 @@ func (p *Process) Stop() {
 		<-p.waitCh
 	}
 
+	_ = removePidFile(pidFilePath(p.cmd.Path))
 	p.cmd = nil
+}
+
+func pidFilePath(binPath string) string {
+	if binPath == "" {
+		return ""
+	}
+	return filepath.Clean(binPath) + ".pid"
+}
+
+func writePidFile(path string, pid int) error {
+	if path == "" || pid <= 0 {
+		return nil
+	}
+	return os.WriteFile(path, []byte(strconv.Itoa(pid)), 0o644)
+}
+
+func readPidFile(path string) (int, error) {
+	if path == "" {
+		return 0, fmt.Errorf("pidfile path is empty")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return 0, err
+	}
+	return pid, nil
+}
+
+func removePidFile(path string) error {
+	if path == "" {
+		return nil
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func cleanupStaleProcess(binPath string) {
+	pidPath := pidFilePath(binPath)
+	pid, err := readPidFile(pidPath)
+	if err != nil {
+		return
+	}
+
+	if !processMatchesBinary(pid, binPath) {
+		_ = removePidFile(pidPath)
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		_ = removePidFile(pidPath)
+		return
+	}
+
+	_ = proc.Signal(os.Interrupt)
+	time.Sleep(500 * time.Millisecond)
+
+	if processMatchesBinary(pid, binPath) {
+		_ = proc.Kill()
+	}
+
+	_ = removePidFile(pidPath)
+}
+
+func processMatchesBinary(pid int, binPath string) bool {
+	if pid <= 0 || binPath == "" {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return false
+	}
+
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "args=").
+		Output()
+	if err != nil {
+		return false
+	}
+
+	args := string(out)
+	if strings.Contains(args, binPath) {
+		return true
+	}
+	if abs, err := filepath.Abs(binPath); err == nil && abs != "" {
+		return strings.Contains(args, abs)
+	}
+	return false
+}
+
+func guardPort(port int, binPath string) {
+	if port <= 0 {
+		return
+	}
+
+	pids, err := pidsListeningOnPort(port)
+	if err != nil || len(pids) == 0 {
+		return
+	}
+
+	killed := 0
+	for _, pid := range pids {
+		if processMatchesBinary(pid, binPath) {
+			if killProcess(pid) {
+				killed++
+			}
+		}
+	}
+
+	if killed == 0 {
+		return
+	}
+
+	waitForPortFree(port, 2*time.Second)
+}
+
+func pidsListeningOnPort(port int) ([]int, error) {
+	if runtime.GOOS == "windows" {
+		return nil, nil
+	}
+	if _, err := exec.LookPath("lsof"); err != nil {
+		return nil, err
+	}
+
+	out, err := exec.Command(
+		"lsof",
+		"-nP",
+		"-iTCP:"+strconv.Itoa(port),
+		"-sTCP:LISTEN",
+		"-F",
+		"p",
+	).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(string(out), "\n")
+	seen := map[int]bool{}
+	var pids []int
+	for _, line := range lines {
+		if strings.HasPrefix(line, "p") {
+			pidStr := strings.TrimSpace(strings.TrimPrefix(line, "p"))
+			pid, err := strconv.Atoi(pidStr)
+			if err != nil {
+				continue
+			}
+			if !seen[pid] {
+				seen[pid] = true
+				pids = append(pids, pid)
+			}
+		}
+	}
+
+	return pids, nil
+}
+
+func killProcess(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	_ = proc.Signal(os.Interrupt)
+	time.Sleep(300 * time.Millisecond)
+	_ = proc.Kill()
+	return true
+}
+
+func waitForPortFree(port int, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		pids, err := pidsListeningOnPort(port)
+		if err == nil && len(pids) == 0 {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }

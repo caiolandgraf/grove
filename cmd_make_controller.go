@@ -122,40 +122,47 @@ func runMakeController(_ *cobra.Command, args []string) error {
 		colorGray,
 		"group := fuego.Group(api, \"/"+toPlural(snake)+"\")"+colorReset,
 	)
+	nameLower := toLowerFirst(name)
+	pluralName := toPascalCase(toPlural(name))
 	fmt.Printf(
-		"             %s%s\n",
-		colorGray,
-		toLowerFirst(
-			name,
-		)+"Controller := controllers.New"+name+"Controller(app.Session)"+colorReset,
+		"             %s%sRepo := models.%s()\n",
+		colorGray, nameLower, pluralName,
+	)
+	fmt.Printf(
+		"             %s%sService := services.New%sService(%sRepo)\n",
+		colorGray, nameLower, name, nameLower,
+	)
+	fmt.Printf(
+		"             %s%sController := controllers.New%sController(app.Session, %sService)%s\n",
+		colorGray, nameLower, name, nameLower, colorReset,
 	)
 	fmt.Printf(
 		"             %sfuego.Get(group, \"/\", %sController.List)\n",
 		colorGray,
-		toSnakeCase(toLowerFirst(name)),
+		nameLower,
 	)
 	fmt.Printf(
 		"             %sfuego.Post(group, \"/\", %sController.Create)\n",
 		colorGray,
-		toSnakeCase(toLowerFirst(name)),
+		nameLower,
 	)
 	fmt.Printf(
 		"             %sfuego.Get(group, \"/{%s_id}\", %sController.Get)\n",
 		colorGray,
 		snake,
-		toSnakeCase(toLowerFirst(name)),
+		nameLower,
 	)
 	fmt.Printf(
 		"             %sfuego.Put(group, \"/{%s_id}\", %sController.Update)\n",
 		colorGray,
 		snake,
-		toSnakeCase(toLowerFirst(name)),
+		nameLower,
 	)
 	fmt.Printf(
 		"             %sfuego.Delete(group, \"/{%s_id}\", %sController.Delete)\n",
 		colorGray,
 		snake,
-		toSnakeCase(toLowerFirst(name)),
+		nameLower,
 	)
 	fmt.Println()
 

@@ -1,0 +1,26 @@
+package services
+
+import (
+	"context"
+	"{{.Module}}/internal/models"
+)
+
+// {{.Name}}Repository define os métodos de persistência necessários pelo serviço.
+// Permite mockar a camada de dados nos testes.
+type {{.Name}}Repository interface {
+	Create(entity *models.{{.Name}}) error
+	Update(entity *models.{{.Name}}) error
+	Delete(id any) error
+	Find(id any) (*models.{{.Name}}, error)
+	Paginate(page, perPage int) ([]models.{{.Name}}, int64, error)
+}
+
+type {{.Name}}Service struct {
+	repo {{.Name}}Repository
+}
+
+func New{{.Name}}Service(repo {{.Name}}Repository) *{{.Name}}Service {
+	return &{{.Name}}Service{repo: repo}
+}
+
+// TODO: Adicionar métodos de negócio aqui (ex: Create{{.Name}}, Get{{.Name}}, etc.)

@@ -2,7 +2,12 @@ package watcher
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -34,6 +39,10 @@ type Config struct {
 	// DebounceMs is the debounce window in milliseconds. Burst saves within
 	// this window are collapsed into a single rebuild.
 	DebounceMs int `toml:"debounce_ms"`
+
+	// PortGuard optionally frees the port before starting the app.
+	// Set to 0 to disable.
+	PortGuard int `toml:"port_guard"`
 }
 
 // DefaultConfig returns a Config populated with sensible out-of-the-box
@@ -51,16 +60,14 @@ func DefaultConfig() Config {
 			"vendor",
 			"node_modules",
 			".git",
-			"tests",
 			"infra",
 			"migrations",
 			"bin",
-			"docs",
-			"tmp",
-			"dist",
+			"internal/tests",
 		},
 		Extensions: []string{".go"},
-		DebounceMs: 100,
+		DebounceMs: 50,
+		PortGuard:  0,
 	}
 }
 
@@ -103,6 +110,7 @@ type devSection struct {
 	Exclude    []string `toml:"exclude"`
 	Extensions []string `toml:"extensions"`
 	DebounceMs int      `toml:"debounce_ms"`
+	PortGuard  *int     `toml:"port_guard"`
 }
 
 // LoadConfig reads the [dev] section from grove.toml in the current working
@@ -155,6 +163,149 @@ func LoadConfig() (Config, error) {
 	if dev.DebounceMs > 0 {
 		cfg.DebounceMs = dev.DebounceMs
 	}
+	portGuardSet := dev.PortGuard != nil
+	if portGuardSet {
+		cfg.PortGuard = *dev.PortGuard
+	}
+
+	if cfg.PortGuard == 0 && !portGuardSet {
+		if inferred := inferPortGuard(cfg.Root); inferred > 0 {
+			cfg.PortGuard = inferred
+		}
+	}
 
 	return cfg, nil
+}
+
+func inferPortGuard(root string) int {
+	ports := readEnvPorts(root)
+	for _, key := range []string{
+		"APP_PORT",
+		"PORT",
+		"HTTP_PORT",
+		"SERVER_PORT",
+	} {
+		if port, ok := ports[key]; ok && port > 0 {
+			return port
+		}
+	}
+
+	if baseURL, ok := readEnvString(root, "BASE_URL"); ok {
+		if port := parsePortFromURL(baseURL); port > 0 {
+			return port
+		}
+	}
+
+	if addr, ok := readEnvString(root, "APP_ADDR"); ok {
+		if port := parsePortFromAddr(addr); port > 0 {
+			return port
+		}
+	}
+
+	return 0
+}
+
+func readEnvPorts(root string) map[string]int {
+	ports := make(map[string]int)
+	if envs := readEnvFile(root); len(envs) > 0 {
+		for k, v := range envs {
+			if port, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+				ports[k] = port
+			}
+		}
+	}
+
+	for _, key := range []string{"APP_PORT", "PORT", "HTTP_PORT", "SERVER_PORT"} {
+		if v, ok := os.LookupEnv(key); ok {
+			if port, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+				ports[key] = port
+			}
+		}
+	}
+
+	return ports
+}
+
+func readEnvString(root, key string) (string, bool) {
+	if envs := readEnvFile(root); len(envs) > 0 {
+		if v, ok := envs[key]; ok {
+			return v, true
+		}
+	}
+	if v, ok := os.LookupEnv(key); ok {
+		return v, true
+	}
+	return "", false
+}
+
+func readEnvFile(root string) map[string]string {
+	path := filepath.Join(root, ".env")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(string(content), "\n")
+	out := make(map[string]string)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "export ") {
+			line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		}
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		val = strings.TrimSpace(val)
+		if len(val) >= 2 {
+			if (val[0] == '"' && val[len(val)-1] == '"') ||
+				(val[0] == '\'' && val[len(val)-1] == '\'') {
+				val = val[1 : len(val)-1]
+			}
+		}
+		out[key] = val
+	}
+
+	return out
+}
+
+func parsePortFromURL(raw string) int {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	if portStr := parsed.Port(); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			return port
+		}
+	}
+	return 0
+}
+
+func parsePortFromAddr(raw string) int {
+	addr := strings.TrimSpace(raw)
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	if strings.HasPrefix(addr, ":") {
+		if port, err := strconv.Atoi(
+			strings.TrimPrefix(addr, ":"),
+		); err == nil {
+			return port
+		}
+	}
+	if host, portStr, err := net.SplitHostPort(addr); err == nil {
+		if host != "" || portStr != "" {
+			if port, err := strconv.Atoi(portStr); err == nil {
+				return port
+			}
+		}
+	}
+	return 0
 }

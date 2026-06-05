@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -43,15 +44,17 @@ func scaffoldModel(name string) error {
 	module := getModuleName()
 
 	data := struct {
-		Name      string
-		NameLower string
-		TableName string
-		Module    string
+		Name       string
+		NameLower  string
+		TableName  string
+		Module     string
+		PluralName string
 	}{
-		Name:      name,
-		NameLower: toLowerFirst(name),
-		TableName: tableName,
-		Module:    module,
+		Name:       name,
+		NameLower:  toLowerFirst(name),
+		TableName:  tableName,
+		Module:     module,
+		PluralName: toPascalCase(toPlural(name)),
 	}
 
 	content, err := renderStub(modelStub, "model", data)
@@ -64,6 +67,42 @@ func scaffoldModel(name string) error {
 	}
 
 	printCreated("Model", name, destPath)
+	return nil
+}
+
+// ──────────────────────────────────────────────
+// Service
+// ──────────────────────────────────────────────
+
+func scaffoldService(name string) error {
+	snake := toSnakeCase(name)
+	destPath := filepath.Join("internal", "services", snake+"_service.go")
+
+	if fileExists(destPath) {
+		printSkipped("Service", name, destPath)
+		return nil
+	}
+
+	module := getModuleName()
+
+	data := struct {
+		Name   string
+		Module string
+	}{
+		Name:   name,
+		Module: module,
+	}
+
+	content, err := renderStub(serviceStub, "service", data)
+	if err != nil {
+		return err
+	}
+
+	if err := writeFile(destPath, content); err != nil {
+		return err
+	}
+
+	printCreated("Service", name, destPath)
 	return nil
 }
 
@@ -85,10 +124,12 @@ func scaffoldController(name string, noAuth bool) error {
 
 	data := struct {
 		Name      string
+		NameLower string
 		ParamName string
 		Module    string
 	}{
 		Name:      name,
+		NameLower: toLowerFirst(name),
 		ParamName: snake,
 		Module:    module,
 	}
@@ -294,4 +335,80 @@ func writeFile(path string, content []byte) error {
 // predictable regardless of the project's module name.
 func getPackageName() string {
 	return "tests"
+}
+
+// wireRoutes reads internal/routes/routes.go and automatically registers the MCS layers and routing group.
+func wireRoutes(name string) error {
+	routesPath := filepath.Join("internal", "routes", "routes.go")
+	if !fileExists(routesPath) {
+		fmt.Printf("  %s WARNING %s  routes file not found at %s. Skipping auto-wiring.\n",
+			colorBgYellow, colorReset, routesPath)
+		return nil
+	}
+
+	contentBytes, err := os.ReadFile(routesPath)
+	if err != nil {
+		return fmt.Errorf("failed to read routes file: %w", err)
+	}
+
+	content := string(contentBytes)
+	nameLower := toLowerFirst(name)
+
+	// Avoid duplicating wiring if it's already there
+	if strings.Contains(content, nameLower+"Repo :=") {
+		return nil
+	}
+
+	pluralName := toPascalCase(toPlural(name))
+	pluralSnake := toPlural(toSnakeCase(name))
+	snake := toSnakeCase(name)
+
+	wiring := fmt.Sprintf(`	%sRepo := models.%s()
+	%sService := services.New%sService(%sRepo)
+	%sController := controllers.New%sController(app.Session, %sService)
+
+	%sGroup := fuego.Group(s, "/api/v1/%s")
+	fuego.Get(%sGroup, "/", %sController.List)
+	fuego.Post(%sGroup, "/", %sController.Create)
+	fuego.Get(%sGroup, "/{%s_id}", %sController.Get)
+	fuego.Put(%sGroup, "/{%s_id}", %sController.Update)
+	fuego.Delete(%sGroup, "/{%s_id}", %sController.Delete)
+
+`,
+		nameLower, pluralName,
+		nameLower, name, nameLower,
+		nameLower, name, nameLower,
+		nameLower, pluralSnake,
+		nameLower, nameLower,
+		nameLower, nameLower,
+		nameLower, snake, nameLower,
+		nameLower, snake, nameLower,
+		nameLower, snake, nameLower,
+	)
+
+	target := "func SetupRoutes(s *fuego.Server) {"
+	idx := strings.Index(content, target)
+	if idx == -1 {
+		return fmt.Errorf("could not find func SetupRoutes in routes.go")
+	}
+
+	insertPos := idx + len(target)
+	if insertPos < len(content) && content[insertPos] == '\n' {
+		insertPos++
+	}
+
+	newContent := content[:insertPos] + wiring + content[insertPos:]
+
+	if err := os.WriteFile(routesPath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write updated routes.go: %w", err)
+	}
+
+	fmt.Printf("  %s WIRED   %s  %s %s %s\n",
+		colorBgGreen,
+		colorReset,
+		colorGray+"Routes"+colorReset,
+		bold(name),
+		gray("→ "+routesPath),
+	)
+	return nil
 }

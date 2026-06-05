@@ -1,133 +1,24 @@
 package controllers
 
 import (
-	"net/http"
-
-	"{{.Module}}/internal/dto"
-	"{{.Module}}/internal/models"
-
 	"github.com/alexedwards/scs/v2"
+	"{{.Module}}/internal/services"
 	"github.com/go-fuego/fuego"
 )
 
 type {{.Name}}Controller struct {
-	session *scs.SessionManager
+	session         *scs.SessionManager
+	{{.NameLower}}Service *services.{{.Name}}Service
 }
 
-func New{{.Name}}Controller(session *scs.SessionManager) *{{.Name}}Controller {
-	return &{{.Name}}Controller{session: session}
-}
-
-func (ctl *{{.Name}}Controller) Get(c fuego.ContextNoBody) (*dto.{{.Name}}Response, error) {
-	id := c.PathParam("{{.ParamName}}_id")
-
-	item, err := models.{{.Name}}s().Find(id)
-	if err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusNotFound,
-			Err:    err,
-		}
-	}
-
-	return to{{.Name}}DTO(item), nil
-}
-
-func (ctl *{{.Name}}Controller) List(c fuego.ContextNoBody) (*dto.{{.Name}}sListResponse, error) {
-	items, err := models.{{.Name}}s().All()
-	if err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusInternalServerError,
-			Err:    err,
-		}
-	}
-
-	result := make([]dto.{{.Name}}Response, len(items))
-	for i, item := range items {
-		result[i] = *to{{.Name}}DTO(&item)
-	}
-
-	return &dto.{{.Name}}sListResponse{
-		Items: result,
-		Total: len(result),
-	}, nil
-}
-
-func (ctl *{{.Name}}Controller) Create(c fuego.ContextWithBody[dto.Create{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
-	body, err := c.Body()
-	if err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusBadRequest,
-			Err:    err,
-		}
-	}
-
-	item := &models.{{.Name}}{
-		// TODO: map fields from body
-	}
-	_ = body
-	_ = ctl
-
-	if err := models.{{.Name}}s().Create(item); err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusBadRequest,
-			Err:    err,
-		}
-	}
-
-	return to{{.Name}}DTO(item), nil
-}
-
-func (ctl *{{.Name}}Controller) Update(c fuego.ContextWithBody[dto.Update{{.Name}}Request]) (*dto.{{.Name}}Response, error) {
-	id := c.PathParam("{{.ParamName}}_id")
-
-	body, err := c.Body()
-	if err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusBadRequest,
-			Err:    err,
-		}
-	}
-
-	repo := models.{{.Name}}s()
-
-	item, err := repo.Find(id)
-	if err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusNotFound,
-			Err:    err,
-		}
-	}
-
-	// TODO: map updatable fields from body
-	_ = body
-	_ = ctl
-
-	if err := repo.Update(item); err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusBadRequest,
-			Err:    err,
-		}
-	}
-
-	return to{{.Name}}DTO(item), nil
-}
-
-func (ctl *{{.Name}}Controller) Delete(c fuego.ContextNoBody) (map[string]string, error) {
-	id := c.PathParam("{{.ParamName}}_id")
-	_ = ctl
-
-	if err := models.{{.Name}}s().Delete(id); err != nil {
-		return nil, fuego.HTTPError{
-			Status: http.StatusNotFound,
-			Err:    err,
-		}
-	}
-
-	return map[string]string{"message": "{{.Name}} deleted successfully"}, nil
-}
-
-func to{{.Name}}DTO(m *models.{{.Name}}) *dto.{{.Name}}Response {
-	return &dto.{{.Name}}Response{
-		ID: m.ID,
+func New{{.Name}}Controller(
+	session *scs.SessionManager,
+	{{.NameLower}}Service *services.{{.Name}}Service,
+) *{{.Name}}Controller {
+	return &{{.Name}}Controller{
+		session:         session,
+		{{.NameLower}}Service: {{.NameLower}}Service,
 	}
 }
+
+// TODO: Adicionar os handlers HTTP delegando a lógica para ctl.{{.NameLower}}Service
