@@ -2,11 +2,13 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import DocsPage from '@/pages/DocsPage.vue'
 import ContributorsPage from '@/pages/ContributorsPage.vue'
+import GuidePage from '@/pages/GuidePage.vue'
 
 const routes = [
   { path: '/', name: 'home', component: HomePage, meta: { title: 'Grove — Go Foundation CLI' } },
   { path: '/docs', name: 'docs', component: DocsPage, meta: { title: 'Docs — Grove' } },
   { path: '/contributors', name: 'contributors', component: ContributorsPage, meta: { title: 'Contributors — Grove' } },
+  { path: '/guide', name: 'guide', component: GuidePage, meta: { title: 'First Project Guide — Grove', hideNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
 

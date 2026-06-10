@@ -114,6 +114,31 @@
                 </table>
               </div>
 
+              <!-- Folder Structure Explorer -->
+              <FolderStructure v-else-if="block.type === 'folder-structure'" />
+
+              <!-- First Project Guide Launch Card -->
+              <div v-else-if="block.type === 'first-project-guide'" class="guide-launch-card">
+                <div class="guide-launch-inner">
+                  <div class="guide-launch-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <path d="M9 9l3 3-3 3M13 15h3"/>
+                    </svg>
+                  </div>
+                  <div class="guide-launch-text">
+                    <strong>First Project Guide</strong>
+                    <span>Interactive step-by-step tutorial — scaffold, generate resources, migrate &amp; test your first Grove API.</span>
+                  </div>
+                  <router-link to="/guide" class="btn-launch" id="open-first-project-guide">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Launch Guide
+                  </router-link>
+                </div>
+              </div>
+
             </template>
 
             <div class="item-divider" />
@@ -157,6 +182,9 @@
     </aside>
 
   </div>
+
+
+
 </template>
 
 <script setup>
@@ -164,6 +192,7 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { sections } from '@/data/docs.js'
 import CodeBlock from '@/components/CodeBlock.vue'
+import FolderStructure from '@/components/FolderStructure.vue'
 
 const route      = useRoute()
 const mainRef    = ref(null)
@@ -768,4 +797,108 @@ onUnmounted(() => {
 
   .anchor-link { display: none; }
 }
+/* ─────────────────────────────────────────────
+   First Project Guide launch card
+───────────────────────────────────────────── */
+.guide-launch-card {
+  margin: 1.5rem 0;
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(200, 40, 56, 0.06) 0%, rgba(15, 15, 25, 0.6) 100%);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.guide-launch-card:hover {
+  border-color: var(--red-border);
+}
+
+.guide-launch-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.guide-launch-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius);
+  background: var(--red-dim);
+  border: 1px solid var(--red-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--red-hover);
+}
+
+.guide-launch-text {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.guide-launch-text strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.guide-launch-text span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.btn-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.6em 1.2em;
+  border-radius: var(--radius-sm);
+  background: var(--red);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.btn-launch:hover {
+  background: var(--red-hover);
+  box-shadow: 0 0 16px var(--red-glow);
+}
+
+/* ─────────────────────────────────────────────
+   First Project Guide Fullscreen Modal
+───────────────────────────────────────────── */
+.guide-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(4, 4, 8, 0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+/* Modal transitions */
+.guide-modal-enter-active,
+.guide-modal-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.guide-modal-enter-from,
+.guide-modal-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
 </style>
