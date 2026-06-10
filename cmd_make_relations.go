@@ -60,8 +60,8 @@ func init() {
 	makeRelationsCmd.Flags().StringVar(
 		&makeRelationsPath,
 		"path",
-		"internal/models",
-		"Path to models directory",
+		"internal/modules",
+		"Path to modules directory (scans each domain's model.go)",
 	)
 	makeRelationsCmd.Flags().BoolVar(
 		&makeRelationsDryRun,
@@ -341,7 +341,38 @@ func runMakeRelations(_ *cobra.Command, _ []string) error {
 }
 
 func loadModelFiles(modelsDir string) ([]*modelFile, error) {
-	entries, err := os.ReadDir(modelsDir)
+	var paths []string
+
+	isModulesRoot := filepath.Base(modelsDir) == "modules" ||
+		strings.HasSuffix(filepath.ToSlash(modelsDir), "/internal/modules")
+
+	err := filepath.WalkDir(modelsDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		base := d.Name()
+		if !strings.HasSuffix(base, ".go") || strings.HasSuffix(base, "_test.go") {
+			return nil
+		}
+
+		if isModulesRoot {
+			if base != "model.go" {
+				return nil
+			}
+		} else if strings.Contains(filepath.ToSlash(path), "/") {
+			rel, relErr := filepath.Rel(modelsDir, path)
+			if relErr != nil || strings.Contains(rel, string(os.PathSeparator)) {
+				return nil
+			}
+		}
+
+		paths = append(paths, path)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf(
 			"could not read models directory %s: %w",
@@ -352,17 +383,7 @@ func loadModelFiles(modelsDir string) ([]*modelFile, error) {
 
 	var out []*modelFile
 
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if !strings.HasSuffix(name, ".go") ||
-			strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-
-		fullPath := filepath.Join(modelsDir, name)
+	for _, fullPath := range paths {
 		src, err := os.ReadFile(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("could not read %s: %w", fullPath, err)

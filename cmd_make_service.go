@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -11,23 +12,18 @@ var makeServiceCmd = &cobra.Command{
 	Short: "Scaffold a new service",
 	Long: bold(
 		"make:service",
-	) + ` scaffolds a new service in ` + colorCyan + `internal/services/` + colorReset + `.
-
-The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
-so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `PostService` + colorReset + `.
+	) + ` scaffolds a service in ` + colorCyan + `internal/modules/<domain>/service.go` + colorReset + `.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:service Post
-  grove make:service Posts        # same as Post (singularized)
-  grove make:service BlogPost
-  grove make:service user_profile`,
+  grove make:service BlogPost`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeService,
 }
 
 func runMakeService(_ *cobra.Command, args []string) error {
 	name := toPascalCase(toSingular(args[0]))
-	snake := toSnakeCase(name)
+	modDir := moduleDir(name)
 
 	fmt.Println()
 	fmt.Printf(
@@ -47,7 +43,7 @@ func runMakeService(_ *cobra.Command, args []string) error {
 		"    %s1.%s Implement your business logic in %s\n",
 		colorGray,
 		colorReset,
-		colorCyan+"internal/services/"+snake+"_service.go"+colorReset,
+		colorCyan+filepath.Join(modDir, "service.go")+colorReset,
 	)
 	fmt.Println()
 

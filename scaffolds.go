@@ -27,37 +27,54 @@ func ensureGest() error {
 	return c.Run()
 }
 
+// modulePackage returns the Go package name for a domain module (e.g. "posts").
+func modulePackage(name string) string {
+	return toPlural(toSnakeCase(name))
+}
+
+// moduleDir returns the filesystem path for a domain module.
+func moduleDir(name string) string {
+	return filepath.Join("internal", "modules", modulePackage(name))
+}
+
+type moduleScaffoldData struct {
+	Name        string
+	NameLower   string
+	Module      string
+	Package     string
+	TableName   string
+	PluralName  string
+	RoutePrefix string
+	PathParam   string
+}
+
+func newModuleScaffoldData(name string) moduleScaffoldData {
+	snake := toSnakeCase(name)
+	return moduleScaffoldData{
+		Name:        name,
+		NameLower:   toLowerFirst(name),
+		Module:      getModuleName(),
+		Package:     modulePackage(name),
+		TableName:   toPlural(snake),
+		PluralName:  toPascalCase(toPlural(name)),
+		RoutePrefix: toPlural(snake),
+		PathParam:   "{" + snake + "_id}",
+	}
+}
+
 // ──────────────────────────────────────────────
 // Model
 // ──────────────────────────────────────────────
 
 func scaffoldModel(name string) error {
-	snake := toSnakeCase(name)
-	tableName := toPlural(snake)
-	destPath := filepath.Join("internal", "models", snake+".go")
+	destPath := filepath.Join(moduleDir(name), "model.go")
 
 	if fileExists(destPath) {
 		printSkipped("Model", name, destPath)
 		return nil
 	}
 
-	module := getModuleName()
-
-	data := struct {
-		Name       string
-		NameLower  string
-		TableName  string
-		Module     string
-		PluralName string
-	}{
-		Name:       name,
-		NameLower:  toLowerFirst(name),
-		TableName:  tableName,
-		Module:     module,
-		PluralName: toPascalCase(toPlural(name)),
-	}
-
-	content, err := renderStub(modelStub, "model", data)
+	content, err := renderStub(modelStub, "model", newModuleScaffoldData(name))
 	if err != nil {
 		return err
 	}
@@ -75,25 +92,14 @@ func scaffoldModel(name string) error {
 // ──────────────────────────────────────────────
 
 func scaffoldService(name string) error {
-	snake := toSnakeCase(name)
-	destPath := filepath.Join("internal", "services", snake+"_service.go")
+	destPath := filepath.Join(moduleDir(name), "service.go")
 
 	if fileExists(destPath) {
 		printSkipped("Service", name, destPath)
 		return nil
 	}
 
-	module := getModuleName()
-
-	data := struct {
-		Name   string
-		Module string
-	}{
-		Name:   name,
-		Module: module,
-	}
-
-	content, err := renderStub(serviceStub, "service", data)
+	content, err := renderStub(serviceStub, "service", newModuleScaffoldData(name))
 	if err != nil {
 		return err
 	}
@@ -111,27 +117,11 @@ func scaffoldService(name string) error {
 // ──────────────────────────────────────────────
 
 func scaffoldController(name string, noAuth bool) error {
-	snake := toSnakeCase(name)
-	kebab := toKebabCase(name)
-	destPath := filepath.Join("internal", "controllers", kebab+"-controller.go")
+	destPath := filepath.Join(moduleDir(name), "controller.go")
 
 	if fileExists(destPath) {
 		printSkipped("Controller", name, destPath)
 		return nil
-	}
-
-	module := getModuleName()
-
-	data := struct {
-		Name      string
-		NameLower string
-		ParamName string
-		Module    string
-	}{
-		Name:      name,
-		NameLower: toLowerFirst(name),
-		ParamName: snake,
-		Module:    module,
 	}
 
 	stub := controllerStub
@@ -139,7 +129,7 @@ func scaffoldController(name string, noAuth bool) error {
 		stub = controllerLegacyStub
 	}
 
-	content, err := renderStub(stub, "controller", data)
+	content, err := renderStub(stub, "controller", newModuleScaffoldData(name))
 	if err != nil {
 		return err
 	}
@@ -153,28 +143,43 @@ func scaffoldController(name string, noAuth bool) error {
 }
 
 // ──────────────────────────────────────────────
-// Request / DTO
+// Docs
+// ──────────────────────────────────────────────
+
+func scaffoldDocs(name string) error {
+	destPath := filepath.Join(moduleDir(name), "docs.go")
+
+	if fileExists(destPath) {
+		printSkipped("Docs", name, destPath)
+		return nil
+	}
+
+	content, err := renderStub(docsStub, "docs", newModuleScaffoldData(name))
+	if err != nil {
+		return err
+	}
+
+	if err := writeFile(destPath, content); err != nil {
+		return err
+	}
+
+	printCreated("Docs", name, destPath)
+	return nil
+}
+
+// ──────────────────────────────────────────────
+// DTO
 // ──────────────────────────────────────────────
 
 func scaffoldRequest(name string) error {
-	kebab := toKebabCase(name)
-	snake := toSnakeCase(name)
-	destPath := filepath.Join("internal", "dto", kebab+"-dto.go")
+	destPath := filepath.Join(moduleDir(name), "dto.go")
 
 	if fileExists(destPath) {
 		printSkipped("DTO", name, destPath)
 		return nil
 	}
 
-	data := struct {
-		Name      string
-		SnakeName string
-	}{
-		Name:      name,
-		SnakeName: snake,
-	}
-
-	content, err := renderStub(requestStub, "request", data)
+	content, err := renderStub(dtoStub, "dto", newModuleScaffoldData(name))
 	if err != nil {
 		return err
 	}
@@ -193,7 +198,7 @@ func scaffoldRequest(name string) error {
 
 func scaffoldMiddleware(name string) error {
 	kebab := toKebabCase(name)
-	destPath := filepath.Join("internal", "middleware", kebab+"-middleware.go")
+	destPath := filepath.Join("internal", "app", "middleware", kebab+"-middleware.go")
 
 	if fileExists(destPath) {
 		printSkipped("Middleware", name, destPath)
@@ -260,8 +265,6 @@ func scaffoldTestSpec(name string) error {
 	printCreated("Test", name, destPath)
 
 	if isFirstSpec {
-		// Install gest into the project's go.mod the first time a test file is
-		// created so that "go test ./..." works immediately.
 		fmt.Println()
 		fmt.Printf(
 			"  %sInstalling gest%s %s\n",
@@ -331,84 +334,66 @@ func writeFile(path string, content []byte) error {
 }
 
 // getPackageName returns the Go package name to use for generated test files.
-// internal/tests/ is an isolated package so "tests" is always valid and
-// predictable regardless of the project's module name.
 func getPackageName() string {
 	return "tests"
 }
 
-// wireRoutes reads internal/routes/routes.go and automatically registers the MCS layers and routing group.
-func wireRoutes(name string) error {
-	routesPath := filepath.Join("internal", "routes", "routes.go")
-	if !fileExists(routesPath) {
-		fmt.Printf("  %s WARNING %s  routes file not found at %s. Skipping auto-wiring.\n",
-			colorBgYellow, colorReset, routesPath)
+// wireModule registers a domain module in internal/modules/register.go.
+func wireModule(name string) error {
+	registerPath := filepath.Join("internal", "modules", "register.go")
+	if !fileExists(registerPath) {
+		fmt.Printf("  %s WARNING %s  register file not found at %s. Skipping auto-wiring.\n",
+			colorBgYellow, colorReset, registerPath)
 		return nil
 	}
 
-	contentBytes, err := os.ReadFile(routesPath)
+	contentBytes, err := os.ReadFile(registerPath)
 	if err != nil {
-		return fmt.Errorf("failed to read routes file: %w", err)
+		return fmt.Errorf("failed to read register file: %w", err)
 	}
 
 	content := string(contentBytes)
-	nameLower := toLowerFirst(name)
+	pkg := modulePackage(name)
+	moduleImport := fmt.Sprintf("%s/internal/modules/%s", getModuleName(), pkg)
+	wireLine := fmt.Sprintf("\tfunc(b Boot) Module { return %s.Wire(b.DB) },", pkg)
 
-	// Avoid duplicating wiring if it's already there
-	if strings.Contains(content, nameLower+"Repo :=") {
+	if strings.Contains(content, wireLine) || strings.Contains(content, pkg+".Wire(") {
 		return nil
 	}
 
-	pluralName := toPascalCase(toPlural(name))
-	pluralSnake := toPlural(toSnakeCase(name))
-	snake := toSnakeCase(name)
-
-	wiring := fmt.Sprintf(`	%sRepo := models.%s()
-	%sService := services.New%sService(%sRepo)
-	%sController := controllers.New%sController(app.Session, %sService)
-
-	%sGroup := fuego.Group(s, "/api/v1/%s")
-	fuego.Get(%sGroup, "/", %sController.List)
-	fuego.Post(%sGroup, "/", %sController.Create)
-	fuego.Get(%sGroup, "/{%s_id}", %sController.Get)
-	fuego.Put(%sGroup, "/{%s_id}", %sController.Update)
-	fuego.Delete(%sGroup, "/{%s_id}", %sController.Delete)
-
-`,
-		nameLower, pluralName,
-		nameLower, name, nameLower,
-		nameLower, name, nameLower,
-		nameLower, pluralSnake,
-		nameLower, nameLower,
-		nameLower, nameLower,
-		nameLower, snake, nameLower,
-		nameLower, snake, nameLower,
-		nameLower, snake, nameLower,
-	)
-
-	target := "func SetupRoutes(s *fuego.Server) {"
-	idx := strings.Index(content, target)
-	if idx == -1 {
-		return fmt.Errorf("could not find func SetupRoutes in routes.go")
+	if !strings.Contains(content, moduleImport) {
+		importNeedle := "\t\"github.com/go-fuego/fuego\""
+		importLine := fmt.Sprintf("\t\"%s\"\n%s", moduleImport, importNeedle)
+		if strings.Contains(content, importNeedle) {
+			content = strings.Replace(content, importNeedle, importLine, 1)
+		} else {
+			return fmt.Errorf("could not find import block anchor in register.go")
+		}
 	}
 
-	insertPos := idx + len(target)
+	registryNeedle := "var registry = []Factory{"
+	idx := strings.Index(content, registryNeedle)
+	if idx == -1 {
+		return fmt.Errorf("could not find registry in register.go")
+	}
+
+	insertPos := idx + len(registryNeedle)
 	if insertPos < len(content) && content[insertPos] == '\n' {
 		insertPos++
 	}
 
-	newContent := content[:insertPos] + wiring + content[insertPos:]
+	content = content[:insertPos] + wireLine + "\n" + content[insertPos:]
 
-	if err := os.WriteFile(routesPath, []byte(newContent), 0644); err != nil {
-		return fmt.Errorf("failed to write updated routes.go: %w", err)
+	if err := os.WriteFile(registerPath, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("failed to write updated register.go: %w", err)
 	}
 
 	fmt.Printf("  %s WIRED   %s  %s %s %s\n",
 		colorBgGreen,
 		colorReset,
-		colorGray+"Routes"+colorReset,
+		colorGray+"Module"+colorReset,
 		bold(name),
-		gray("→ "+routesPath),
+		gray("→ "+registerPath),
 	)
 	return nil
 }

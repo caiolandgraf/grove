@@ -3,7 +3,6 @@ package seeders
 import (
 	"fmt"
 
-	"{{.Module}}/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -13,15 +12,11 @@ type {{.Name}}Seeder struct{}
 func ({{.Name}}Seeder) Name() string { return "{{.Name}}Seeder" }
 
 func ({{.Name}}Seeder) Seed(db *gorm.DB) error {
-	// TODO: implement seeding logic
-	//
-	// Example pattern:
-	//   - check if a record exists (db.Where(...).First(...))
-	//   - if not found, create it (db.Create(...))
+	// TODO: implement seeding logic using your module repo, e.g.:
+	//   repo := users.Users(db)
 	//
 	// Keep the seeder idempotent: running it multiple times should be safe.
 	_ = db
-	_ = models.User{} // remove when you use actual models
 
 	return fmt.Errorf("{{.Name}}Seeder: not implemented")
 }

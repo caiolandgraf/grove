@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,8 @@ var makeResourceCmd = &cobra.Command{
 	Short: "Scaffold model + controller + DTO at once",
 	Long: bold(
 		"make:resource",
-	) + ` scaffolds a model, controller and DTO file in one shot.
+	) + ` scaffolds a full domain module (model, service, controller, DTO, docs)
+and registers it in ` + colorCyan + `internal/modules/register.go` + colorReset + `.
 
 This is equivalent to running ` + colorCyan + `grove make:model <Name> -r` + colorReset + `.
 Every file respects the ` + colorCyan + `SKIPPED` + colorReset + ` rule — existing files are never overwritten.
@@ -70,7 +72,11 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := wireRoutes(name); err != nil {
+	if err := scaffoldDocs(name); err != nil {
+		return err
+	}
+
+	if err := wireModule(name); err != nil {
 		return err
 	}
 
@@ -78,15 +84,16 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(nextSteps())
 
+	modDir := moduleDir(name)
 	fmt.Printf(
 		"    %s1.%s Add fields to the model in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/models/"+snake+".go"+colorReset,
+		colorCyan+filepath.Join(modDir, "model.go")+colorReset,
 	)
 	fmt.Printf(
 		"    %s2.%s Fill in request/response fields in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/dto/"+toKebabCase(name)+"-dto.go"+colorReset,
+		colorCyan+filepath.Join(modDir, "dto.go")+colorReset,
 	)
 	fmt.Printf(
 		"    %s3.%s Run %s to generate the migration\n",
@@ -99,9 +106,9 @@ func runMakeResource(_ *cobra.Command, args []string) error {
 		colorGreen+"grove migrate"+colorReset,
 	)
 	fmt.Printf(
-		"    %s5.%s Verify routes wired automatically in %s\n",
+		"    %s5.%s Verify module registered in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/routes/routes.go"+colorReset,
+		colorCyan+"internal/modules/register.go"+colorReset,
 	)
 	fmt.Println()
 

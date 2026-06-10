@@ -357,19 +357,19 @@ const terminalLines = [
   { type: 'cmd', text: 'grove make:resource Post' },
   {
     type: 'out',
-    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Model      <b>Post</b>  <span style="color:#3a3c55">→ internal/models/post.go</span>'
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Model      <b>Post</b>  <span style="color:#3a3c55">→ internal/modules/posts/model.go</span>'
   },
   {
     type: 'out',
-    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Migration  <b>create_posts_table</b>  <span style="color:#3a3c55">→ migrations/</span>'
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Service    <b>Post</b>  <span style="color:#3a3c55">→ internal/modules/posts/service.go</span>'
   },
   {
     type: 'out',
-    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Controller <b>Post</b>  <span style="color:#3a3c55">→ internal/controllers/post-controller.go</span>'
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  Controller <b>Post</b>  <span style="color:#3a3c55">→ internal/modules/posts/controller.go</span>'
   },
   {
     type: 'out',
-    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  DTO        <b>Post</b>  <span style="color:#3a3c55">→ internal/dto/post-dto.go</span>'
+    text: '  <span style="color:#4ade80;background:rgba(74,222,128,.1);padding:1px 6px;border-radius:3px"> CREATED </span>  DTO        <b>Post</b>  <span style="color:#3a3c55">→ internal/modules/posts/dto.go</span>'
   }
 ]
 </script>

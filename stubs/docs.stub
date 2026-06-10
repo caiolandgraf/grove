@@ -1,0 +1,66 @@
+package {{.Package}}
+
+import (
+	"{{.Module}}/internal/app/router"
+	"{{.Module}}/internal/app/types"
+)
+
+var List{{.PluralName}}Doc = router.Doc{
+	Detail: router.Detail{
+		Tags:        []string{"{{.Name}}"},
+		Summary:     "List {{.RoutePrefix}}",
+		OperationID: "list{{.PluralName}}",
+	},
+	Responses: map[int]router.Response{
+		200: {Description: "Paginated list", Type: {{.PluralName}}ListResponse{}},
+		500: {Description: "Internal server error", Type: types.ErrorResponse{}},
+	},
+}
+
+var Create{{.Name}}Doc = router.Doc{
+	Detail: router.Detail{
+		Tags:        []string{"{{.Name}}"},
+		Summary:     "Create {{.NameLower}}",
+		OperationID: "create{{.Name}}",
+	},
+	Responses: map[int]router.Response{
+		200: {Description: "Created", Type: {{.Name}}Response{}},
+		400: {Description: "Validation error", Type: types.ErrorResponse{}},
+	},
+}
+
+var Get{{.Name}}Doc = router.Doc{
+	Detail: router.Detail{
+		Tags:        []string{"{{.Name}}"},
+		Summary:     "Get {{.NameLower}} by ID",
+		OperationID: "get{{.Name}}",
+	},
+	Responses: map[int]router.Response{
+		200: {Description: "Found", Type: {{.Name}}Response{}},
+		404: {Description: "Not found", Type: types.ErrorResponse{}},
+	},
+}
+
+var Update{{.Name}}Doc = router.Doc{
+	Detail: router.Detail{
+		Tags:        []string{"{{.Name}}"},
+		Summary:     "Update {{.NameLower}}",
+		OperationID: "update{{.Name}}",
+	},
+	Responses: map[int]router.Response{
+		200: {Description: "Updated", Type: {{.Name}}Response{}},
+		404: {Description: "Not found", Type: types.ErrorResponse{}},
+	},
+}
+
+var Delete{{.Name}}Doc = router.Doc{
+	Detail: router.Detail{
+		Tags:        []string{"{{.Name}}"},
+		Summary:     "Delete {{.NameLower}}",
+		OperationID: "delete{{.Name}}",
+	},
+	Responses: map[int]router.Response{
+		200: {Description: "Deleted", Type: types.MessageResponse{}},
+		404: {Description: "Not found", Type: types.ErrorResponse{}},
+	},
+}

@@ -1,29 +1,34 @@
-package models
+package {{.Package}}
 
 import (
 	"time"
 
-	"{{.Module}}/internal/app"
 	"{{.Module}}/internal/app/database"
 	"gorm.io/gorm"
 )
+
+func init() {
+	database.Register(&{{.Name}}{})
+}
 
 type {{.Name}} struct {
 	ID        string         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	CreatedAt time.Time      `gorm:"autoCreateTime"                                 json:"created_at"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"                                 json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index"                                          json:"-"`
-	// Outros campos
+	// TODO: add fields
 }
 
-func ({{.Name}}) TableName() string { return "{{.TableName}}" }
+func ({{.Name}}) TableName() string {
+	return "{{.TableName}}"
+}
 
-type {{.NameLower}}Repository struct {
+type Repo struct {
 	*database.Repository[{{.Name}}]
 }
 
-func {{.PluralName}}() *{{.NameLower}}Repository {
-	return &{{.NameLower}}Repository{
-		Repository: database.New[{{.Name}}](app.DB),
+func {{.PluralName}}(db *gorm.DB) *Repo {
+	return &Repo{
+		Repository: database.New[{{.Name}}](db),
 	}
 }

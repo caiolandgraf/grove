@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -13,21 +14,16 @@ var makeControllerCmd = &cobra.Command{
 	Short: "Scaffold a new fuego controller",
 	Long: bold(
 		"make:controller",
-	) + ` scaffolds a new fuego controller in ` + colorCyan + `internal/controllers/` + colorReset + `.
+	) + ` scaffolds a module controller in ` + colorCyan + `internal/modules/<domain>/controller.go` + colorReset + `.
 
-By default, the generated controller uses a struct + constructor header (ready for session/auth wiring).
-Pass ` + colorGreen + `--no-auth` + colorReset + ` to generate the legacy function-based controller stub instead.
+The generated controller includes ` + colorCyan + `Mount` + colorReset + ` and ` + colorCyan + `Wire` + colorReset + ` methods
+matching the modular MSC architecture. OpenAPI docs are scaffolded in ` + colorCyan + `docs.go` + colorReset + `.
 
-The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
-so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `PostController` + colorReset + `.
+Pass ` + colorGreen + `--no-auth` + colorReset + ` to generate legacy function-based handlers instead.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:controller Post
-  grove make:controller Posts        # same as Post (singularized)
-  grove make:controller BlogPost
-  grove make:controller user_profile
-  grove make:controller Bill         # new header (default)
-  grove make:controller Bill --no-auth   # legacy stub`,
+  grove make:controller Post --no-auth`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeController,
 }
@@ -37,13 +33,13 @@ func init() {
 		&makeControllerNoAuth,
 		"no-auth",
 		false,
-		"Generate the legacy function-based controller stub (no session/auth header)",
+		"Generate legacy function-based handlers instead of a struct controller",
 	)
 }
 
 func runMakeController(_ *cobra.Command, args []string) error {
 	name := toPascalCase(toSingular(args[0]))
-	snake := toSnakeCase(name)
+	modDir := moduleDir(name)
 
 	fmt.Println()
 	fmt.Printf(
@@ -57,113 +53,26 @@ func runMakeController(_ *cobra.Command, args []string) error {
 		return err
 	}
 
+	if !makeControllerNoAuth {
+		if err := scaffoldDocs(name); err != nil {
+			return err
+		}
+	}
+
 	fmt.Println()
 	fmt.Println(nextSteps())
 	fmt.Printf(
-		"    %s1.%s Fill in the field mappings marked with %s in %s\n",
-		colorGray,
-		colorReset,
-		colorYellow+"// TODO"+colorReset,
-		colorCyan+"internal/controllers/"+toKebabCase(
-			name,
-		)+"-controller.go"+colorReset,
-	)
-	fmt.Printf(
-		"    %s2.%s Register routes in %s:\n",
+		"    %s1.%s Implement handlers in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/routes/"+colorReset,
+		colorCyan+filepath.Join(modDir, "controller.go")+colorReset,
 	)
-
-	if makeControllerNoAuth {
+	if !makeControllerNoAuth {
 		fmt.Printf(
-			"             %sfuego.Get(s, \"/%ss/{%s_id}\", controllers.Get%s)\n",
-			colorGray,
-			snake,
-			snake,
-			name+colorReset,
+			"    %s2.%s Register the module in %s\n",
+			colorGray, colorReset,
+			colorCyan+"internal/modules/register.go"+colorReset,
 		)
-		fmt.Printf(
-			"             %sfuego.Get(s, \"/%ss\", controllers.List%ss)\n",
-			colorGray,
-			snake,
-			name+colorReset,
-		)
-		fmt.Printf(
-			"             %sfuego.Post(s, \"/%ss\", controllers.Create%s)\n",
-			colorGray,
-			snake,
-			name+colorReset,
-		)
-		fmt.Printf(
-			"             %sfuego.Put(s, \"/%ss/{%s_id}\", controllers.Update%s)\n",
-			colorGray,
-			snake,
-			snake,
-			name+colorReset,
-		)
-		fmt.Printf(
-			"             %sfuego.Delete(s, \"/%ss/{%s_id}\", controllers.Delete%s)\n",
-			colorGray,
-			snake,
-			snake,
-			name+colorReset,
-		)
-		fmt.Println()
-		return nil
 	}
-
-	fmt.Printf(
-		"             %s%s\n",
-		colorGray,
-		"api := fuego.Group(s, \"/api/v1\")"+colorReset,
-	)
-	fmt.Printf(
-		"             %s%s\n",
-		colorGray,
-		"group := fuego.Group(api, \"/"+toPlural(snake)+"\")"+colorReset,
-	)
-	nameLower := toLowerFirst(name)
-	pluralName := toPascalCase(toPlural(name))
-	fmt.Printf(
-		"             %s%sRepo := models.%s()\n",
-		colorGray, nameLower, pluralName,
-	)
-	fmt.Printf(
-		"             %s%sService := services.New%sService(%sRepo)\n",
-		colorGray, nameLower, name, nameLower,
-	)
-	fmt.Printf(
-		"             %s%sController := controllers.New%sController(app.Session, %sService)%s\n",
-		colorGray, nameLower, name, nameLower, colorReset,
-	)
-	fmt.Printf(
-		"             %sfuego.Get(group, \"/\", %sController.List)\n",
-		colorGray,
-		nameLower,
-	)
-	fmt.Printf(
-		"             %sfuego.Post(group, \"/\", %sController.Create)\n",
-		colorGray,
-		nameLower,
-	)
-	fmt.Printf(
-		"             %sfuego.Get(group, \"/{%s_id}\", %sController.Get)\n",
-		colorGray,
-		snake,
-		nameLower,
-	)
-	fmt.Printf(
-		"             %sfuego.Put(group, \"/{%s_id}\", %sController.Update)\n",
-		colorGray,
-		snake,
-		nameLower,
-	)
-	fmt.Printf(
-		"             %sfuego.Delete(group, \"/{%s_id}\", %sController.Delete)\n",
-		colorGray,
-		snake,
-		nameLower,
-	)
 	fmt.Println()
 
 	return nil

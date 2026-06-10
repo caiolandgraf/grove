@@ -21,8 +21,11 @@ var controllerStub string
 //go:embed stubs/controller_legacy.stub
 var controllerLegacyStub string
 
-//go:embed stubs/request.stub
-var requestStub string
+//go:embed stubs/dto.stub
+var dtoStub string
+
+//go:embed stubs/docs.stub
+var docsStub string
 
 //go:embed stubs/middleware.stub
 var middlewareStub string
@@ -42,7 +45,7 @@ var seedRunnerStub string
 
 // printCreated prints a green "CREATED" badge line, e.g.:
 //
-//	CREATED   Model User → internal/models/user.go
+//	CREATED   Model User → internal/modules/users/model.go
 func printCreated(kind, name, path string) {
 	fmt.Printf("  %s CREATED %s  %s %s %s\n",
 		colorBgGreen,

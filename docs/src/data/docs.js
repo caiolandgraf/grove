@@ -12,7 +12,7 @@ export const sections = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Grove is distributed as a single binary via <code>go install</code>. Make sure you have Go 1.22 or newer and that <code>$GOPATH/bin</code> (or <code>$HOME/go/bin</code>) is in your <code>$PATH</code>.'
+            text: 'Grove is distributed as a single binary via <code>go install</code>. Make sure you have Go 1.25 or newer and that <code>$GOPATH/bin</code> (or <code>$HOME/go/bin</code>) is in your <code>$PATH</code>.'
           },
           {
             type: 'code',
@@ -34,7 +34,7 @@ grove --help      # full command reference`
           {
             type: 'note',
             kind: 'info',
-            text: 'Documentation version: <strong>v2.1.0</strong>.'
+            text: 'Documentation version: <strong>v2.2.0</strong>.'
           },
           {
             type: 'note',
@@ -88,7 +88,7 @@ grove dev:air`
               },
               {
                 title: 'Add your fields',
-                text: 'Edit <code>internal/models/post.go</code> to add your fields (e.g. <code>Title</code>, <code>Body</code>). Also fill in <code>internal/dto/post-dto.go</code> with your request/response fields.'
+                text: 'Edit <code>internal/modules/posts/model.go</code> to add your fields (e.g. <code>Title</code>, <code>Body</code>). Also fill in <code>internal/modules/posts/dto.go</code> with your request/response fields.'
               },
               {
                 title: 'Generate the migration',
@@ -100,7 +100,7 @@ grove dev:air`
               },
               {
                 title: 'Register routes',
-                text: "Add your routes to <code>internal/routes/</code> and you're done."
+                text: "Verify your module is registered in <code>internal/modules/register.go</code> — <code>grove make:resource</code> does this automatically."
               }
             ]
           }
@@ -129,7 +129,7 @@ grove dev:air`
             rows: [
               [
                 '<a href="https://go.dev/dl" target="_blank">Go</a>',
-                '1.22+',
+                '1.25+',
                 'Build and install grove and your application'
               ],
               [
@@ -182,11 +182,11 @@ grove dev:air`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Downloads and scaffolds a complete Grove project from the official template repository on GitHub.'
+            text: 'Downloads and scaffolds a complete Grove project from the official <a href="https://github.com/caiolandgraf/go-project-base" target="_blank">go-project-base</a> template repository on GitHub (v2.0.0 modular MSC architecture).'
           },
           {
             type: 'paragraph',
-            text: 'If you omit the project name, Grove will prompt for it and ask which observability services to enable (Jaeger, Prometheus, Grafana, Loki, Promtail). The selections update <code>.env.example</code> (<code>OTEL_ENABLED</code> / <code>METRICS_ENABLED</code>) and <code>infra/compose.yml</code>.'
+            text: 'If you omit the project name, Grove will prompt for it and ask which observability services to enable (Jaeger, Prometheus, Grafana, Loki, Promtail). The selections update <code>.env.example</code> (<code>OTEL_ENABLED</code> / <code>METRICS_ENABLED</code>) and <code>docker-compose.yml</code> at the project root (or <code>infra/compose.yml</code> when present).'
           },
           {
             type: 'code',
@@ -221,7 +221,7 @@ grove setup  # prompt for project name + observability`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Starts infrastructure via <code>docker compose</code> and then launches <code>grove dev</code>. It detects <code>infra/compose.yml</code> (or <code>docker-compose.yml</code>) and passes <code>.env</code> to Compose when present.'
+            text: 'Starts infrastructure via <code>docker compose</code> and then launches <code>grove dev</code>. It detects <code>docker-compose.yml</code> at the project root (or <code>infra/compose.yml</code> as fallback) and passes <code>.env</code> to Compose when present.'
           },
           {
             type: 'code',
@@ -242,7 +242,7 @@ grove setup  # prompt for project name + observability`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Stops the Docker Compose stack started by <code>grove up</code>. It uses the same compose file detection and passes <code>.env</code> when present.'
+            text: 'Stops the Docker Compose stack started by <code>grove up</code>. It uses the same compose file detection (<code>docker-compose.yml</code> at root, or <code>infra/compose.yml</code> as fallback) and passes <code>.env</code> when present.'
           },
           {
             type: 'code',
@@ -486,7 +486,7 @@ grove start -o ./bin/my-api`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new GORM model in <code>internal/models/</code>. The name is automatically converted to PascalCase and the file to snake_case. Combine flags to scaffold additional layers in the same step — or use <code>-r</code> as a shorthand for the full resource.'
+            text: 'Scaffolds a new GORM model in <code>internal/modules/&lt;domain&gt;/model.go</code> (e.g. <code>internal/modules/posts/model.go</code>). The entity name is automatically singularized and the domain package pluralized. Combine flags to scaffold additional layers in the same step — or use <code>-r</code> as a shorthand for the full resource.'
           },
           {
             type: 'code',
@@ -530,41 +530,42 @@ grove make:model order_item      # → OrderItem`
           },
           {
             type: 'paragraph',
-            text: 'The generated model includes UUID primary key, <code>CreatedAt</code>, <code>UpdatedAt</code>, soft-delete (<code>DeletedAt</code>) and a typed repository accessor:'
+            text: 'The generated model includes UUID primary key, <code>CreatedAt</code>, <code>UpdatedAt</code>, soft-delete (<code>DeletedAt</code>), Atlas auto-registration via <code>database.Register</code>, and a typed <code>Repo</code> accessor:'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/models/post.go',
-            code: `package models
+            label: 'internal/modules/posts/model.go',
+            code: `package posts
 
 import (
 	"time"
 
-	"your/module/internal/app"
-	"your/module/internal/database"
+	"your/module/internal/app/database"
 	"gorm.io/gorm"
 )
 
+func init() {
+	database.Register(&Post{})
+}
+
 type Post struct {
 	ID        string         \`gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"\`
-	CreatedAt time.Time      \`gorm:"autoCreateTime"  json:"created_at"\`
-	UpdatedAt time.Time      \`gorm:"autoUpdateTime"  json:"updated_at"\`
-	DeletedAt gorm.DeletedAt \`gorm:"index"           json:"-"\`
+	CreatedAt time.Time      \`gorm:"autoCreateTime" json:"created_at"\`
+	UpdatedAt time.Time      \`gorm:"autoUpdateTime" json:"updated_at"\`
+	DeletedAt gorm.DeletedAt \`gorm:"index"          json:"-"\`
+	// TODO: add fields
 }
 
 func (Post) TableName() string { return "posts" }
 
-// postRepository is a wrapper around the generic Repository for the Post model,
-// allowing custom queries and methods specific to Post.
-type postRepository struct {
+type Repo struct {
 	*database.Repository[Post]
 }
 
-// Posts returns a repository scoped to the Post model.
-func Posts() *postRepository {
-	return &postRepository{
-		Repository: database.New[Post](app.DB),
+func Posts(db *gorm.DB) *Repo {
+	return &Repo{
+		Repository: database.New[Post](db),
 	}
 }`
           }
@@ -576,7 +577,7 @@ func Posts() *postRepository {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new fuego controller with service dependency injection in <code>internal/controllers/</code>. By default, the generated controller uses a struct and constructor header injected with the corresponding service layer. Pass <code>--no-auth</code> to generate the legacy function-based stub instead. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
+            text: 'Scaffolds a new fuego controller with <code>Wire</code> and <code>Mount</code> helpers in <code>internal/modules/&lt;domain&gt;/controller.go</code>. By default, the generated controller uses a struct injected with the corresponding service layer. Pass <code>--no-auth</code> to generate the legacy function-based stub instead. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
           },
           {
             type: 'code',
@@ -587,29 +588,39 @@ func Posts() *postRepository {
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/controllers/post-controller.go (generated)',
-            code: `package controllers
+            label: 'internal/modules/posts/controller.go (generated)',
+            code: `package posts
 
 import (
 	"github.com/alexedwards/scs/v2"
-	"your/module/internal/services"
+	"your/module/internal/app/router"
 	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
 )
 
-type PostController struct {
-	session     *scs.SessionManager
-	postService *services.PostService
+type Controller struct {
+	service Service
 }
 
-func NewPostController(
-	session *scs.SessionManager,
-	postService *services.PostService,
-) *PostController {
-	return &PostController{
-		session:     session,
-		postService: postService,
-	}
-}`
+func NewController(service Service) *Controller {
+	return &Controller{service: service}
+}
+
+func Wire(db *gorm.DB) *Controller {
+	return NewController(WireService(db))
+}
+
+func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
+	group := fuego.Group(api, "/posts")
+
+	router.Get(group, "/", ctrl.ListPosts, ListPostsDoc, session)
+	router.Post(group, "/", ctrl.CreatePost, CreatePostDoc, session)
+	router.Get(group, "/{post_id}", ctrl.GetPost, GetPostDoc, session)
+	router.Put(group, "/{post_id}", ctrl.UpdatePost, UpdatePostDoc, session)
+	router.Delete(group, "/{post_id}", ctrl.DeletePost, DeletePostDoc, session)
+}
+
+// TODO: implement HTTP handlers delegating to ctrl.service`
           }
         ]
       },
@@ -619,7 +630,7 @@ func NewPostController(
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new Go service struct and companion repository interface in <code>internal/services/</code>. The service struct receives a repository interface that abstracts database operations, facilitating mock-based unit tests. If the file already exists the command prints <strong>SKIPPED</strong> and exits.'
+            text: 'Scaffolds a new Go service struct in <code>internal/modules/&lt;domain&gt;/service.go</code>. The service receives the module repository directly and exposes a <code>WireService</code> helper for dependency injection. If the file already exists the command prints <strong>SKIPPED</strong> and exits.'
           },
           {
             type: 'code',
@@ -639,32 +650,26 @@ grove make:service user_profile`
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/services/post_service.go (generated)',
-            code: `package services
+            label: 'internal/modules/posts/service.go (generated)',
+            code: `package posts
 
-import (
-	"context"
-	"your/module/internal/models"
-)
+import "gorm.io/gorm"
 
-// PostRepository defines persistence operations needed by the service.
-type PostRepository interface {
-	Create(entity *models.Post) error
-	Update(entity *models.Post) error
-	Delete(id any) error
-	Find(id any) (*models.Post, error)
-	Paginate(page, perPage int) ([]models.Post, int64, error)
+type Service interface {
+	// TODO: add business methods (CreatePost, GetPostByID, etc.)
 }
 
-type PostService struct {
-	repo PostRepository
+type service struct {
+	repo *Repo
 }
 
-func NewPostService(repo PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewService(repo *Repo) Service {
+	return &service{repo: repo}
 }
 
-// TODO: Add business logic here`
+func WireService(db *gorm.DB) Service {
+	return NewService(Posts(db))
+}`
           }
         ]
       },
@@ -674,7 +679,7 @@ func NewPostService(repo PostRepository) *PostService {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds DTO request/response structs in <code>internal/dto/</code>. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
+            text: 'Scaffolds DTO request/response structs in <code>internal/modules/&lt;domain&gt;/dto.go</code>. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
           },
           {
             type: 'code',
@@ -693,8 +698,8 @@ grove make:dto order_item   # → OrderItem`
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/dto/post-dto.go (generated)',
-            code: `package dto
+            label: 'internal/modules/posts/dto.go (generated)',
+            code: `package posts
 
 type CreatePostRequest struct {
 	// TODO: add fields
@@ -721,7 +726,7 @@ type PostsListResponse struct {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a new HTTP middleware in <code>internal/middleware/</code>. The generated file follows the standard <code>func(http.Handler) http.Handler</code> signature compatible with fuego and the standard library. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
+            text: 'Scaffolds a new HTTP middleware in <code>internal/app/middleware/</code>. The generated file follows the standard <code>func(http.Handler) http.Handler</code> signature compatible with fuego and the standard library. If the file already exists the command prints <strong>SKIPPED</strong> and exits cleanly.'
           },
           {
             type: 'code',
@@ -740,7 +745,7 @@ grove make:middleware cors_headers   # → CorsHeaders`
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/middleware/auth-middleware.go (generated)',
+            label: 'internal/app/middleware/auth-middleware.go (generated)',
             code: `package middleware
 
 import "net/http"
@@ -761,14 +766,16 @@ func Auth(next http.Handler) http.Handler {
           {
             type: 'code',
             lang: 'go',
-            label: 'cmd/api/main.go',
-            code: `s := fuego.NewServer(fuego.WithAddr(":8080"))
+            label: 'internal/routes/routes.go',
+            code: `func SetupRoutes(s *fuego.Server, session *scs.SessionManager) {
+	// Apply globally
+	fuego.Use(s, middleware.Auth)
 
-// Apply globally
-s.Use(middleware.Auth)
+	// ... health checks, metrics ...
 
-routes.Register(s)
-s.Run()`
+	api := fuego.Group(s, "/api/v1")
+	modules.Mount(api, modules.Boot{DB: db, Session: session})
+}`
           }
         ]
       },
@@ -851,8 +858,8 @@ grove make:migration create_orders_table --env dev`
             rows: [
               [
                 '<code>--path</code>',
-                '<code>internal/models</code>',
-                'Models directory to scan'
+                '<code>internal/modules</code>',
+                'Modules directory to scan (<code>model.go</code> per domain)'
               ],
               [
                 '<code>--dry-run</code>',
@@ -1031,7 +1038,7 @@ grove db:seed --env-file .env`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a GORM model, service, controller, and DTO in one shot, and automatically wires routes in <code>internal/routes/routes.go</code>. Equivalent to running <code>grove make:model &lt;Name&gt; -r</code>. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
+            text: 'Scaffolds a full domain module (model, service, controller, DTO, and OpenAPI docs) in <code>internal/modules/&lt;domain&gt;/</code> and registers it in <code>internal/modules/register.go</code>. Equivalent to running <code>grove make:model &lt;Name&gt; -r</code>. Every file respects the <strong>SKIPPED</strong> rule — existing files are never overwritten.'
           },
           {
             type: 'paragraph',
@@ -1059,30 +1066,30 @@ grove make:resource order_items # → OrderItem model, order_items table`
           },
           {
             type: 'table',
-            head: ['Input', 'Resolved name', 'File', 'Table'],
+            head: ['Input', 'Resolved name', 'Module path', 'Table'],
             rows: [
               [
                 '<code>Post</code>',
                 '<code>Post</code>',
-                '<code>post.go</code>',
+                '<code>internal/modules/posts/</code>',
                 '<code>posts</code>'
               ],
               [
                 '<code>Posts</code>',
                 '<code>Post</code>',
-                '<code>post.go</code>',
+                '<code>internal/modules/posts/</code>',
                 '<code>posts</code>'
               ],
               [
                 '<code>BlogPost</code>',
                 '<code>BlogPost</code>',
-                '<code>blog_post.go</code>',
+                '<code>internal/modules/blog_posts/</code>',
                 '<code>blog_posts</code>'
               ],
               [
                 '<code>order_items</code>',
                 '<code>OrderItem</code>',
-                '<code>order_item.go</code>',
+                '<code>internal/modules/order_items/</code>',
                 '<code>order_items</code>'
               ]
             ]
@@ -1097,18 +1104,21 @@ grove make:resource order_items # → OrderItem model, order_items table`
             rows: [
               [
                 '1',
-                'Add fields to the model in <code>internal/models/&lt;name&gt;.go</code>'
+                'Add fields to the model in <code>internal/modules/&lt;domain&gt;/model.go</code>'
               ],
               [
                 '2',
-                'Add request/response fields to the DTO in <code>internal/dto/&lt;name&gt;-dto.go</code>'
+                'Add request/response fields to the DTO in <code>internal/modules/&lt;domain&gt;/dto.go</code>'
               ],
               [
                 '3',
                 'Run <code>grove make:migration create_&lt;table&gt;_table</code> to generate the SQL diff'
               ],
               ['4', 'Run <code>grove migrate</code> to apply it'],
-              ['5', 'Register routes in <code>internal/routes/</code>']
+              [
+                '5',
+                'Verify module registered in <code>internal/modules/register.go</code>'
+              ]
             ]
           },
           {
@@ -1441,23 +1451,23 @@ import (
 	"testing"
 
 	"github.com/caiolandgraf/gest/v2/gest"
-	"your/module/internal/models"
+	"your/module/internal/modules/posts"
 )
 
 func TestPost(t *testing.T) {
 	s := gest.Describe("Post")
 
 	s.It("TableName should return 'posts'", func(t *gest.T) {
-		t.Expect(models.Post{}.TableName()).ToBe("posts")
+		t.Expect(posts.Post{}.TableName()).ToBe("posts")
 	})
 
 	s.It("slug should contain the title", func(t *gest.T) {
-		post := models.Post{Title: "Hello World"}
+		post := posts.Post{Title: "Hello World"}
 		t.Expect(post.Slug()).ToContain("hello")
 	})
 
 	s.It("draft post should not be published", func(t *gest.T) {
-		post := models.Post{Published: false}
+		post := posts.Post{Published: false}
 		t.Expect(post.Published).ToBeFalse()
 	})
 
@@ -1521,7 +1531,7 @@ func TestPost(t *testing.T) {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Every Grove project follows a clean, layered directory layout. The separation of concerns is intentional — each layer has one job.'
+            text: 'Every Grove project follows the <strong>go-project-base</strong> modular MSC layout. Each domain is a self-contained module under <code>internal/modules/</code>; shared infrastructure lives under <code>internal/app/</code>.'
           },
           {
             type: 'folder-structure'
@@ -1536,47 +1546,47 @@ func TestPost(t *testing.T) {
             rows: [
               [
                 '<code>cmd/api/</code>',
-                'Application entry point — wires singletons, routes and starts the server'
+                'Application entry point — wires infrastructure, routes and starts the server'
+              ],
+              [
+                '<code>cmd/atlas/</code>',
+                'Atlas GORM schema loader — loads all registered models for migrations'
               ],
               [
                 '<code>internal/app/</code>',
-                'Shared singletons: DB, Redis, session store, metrics — initialized once at startup'
+                'Shared infrastructure used by every module'
               ],
               [
                 '<code>internal/app/config/</code>',
                 'Infrastructure initializers for DB, Redis, OpenTelemetry and other external services'
               ],
               [
+                '<code>internal/app/database/</code>',
+                'Generic GORM repository (<code>Repository[T]</code>) and Atlas model registry'
+              ],
+              [
                 '<code>internal/app/middleware/</code>',
                 'HTTP middlewares: CORS, session, observability, auth, etc.'
               ],
               [
-                '<code>internal/controllers/</code>',
-                'fuego route handlers — one file per resource, OpenAPI inferred automatically'
+                '<code>internal/app/router/</code>',
+                'Declarative OpenAPI route documentation per endpoint'
               ],
               [
-                '<code>internal/database/</code>',
-                'Generic GORM repository (<code>Repository[T]</code>) used by all models'
+                '<code>internal/modules/</code>',
+                'Self-contained domain packages — model, dto, service, controller, docs per domain'
               ],
               [
-                '<code>internal/dto/</code>',
-                'Request and response structs — decoupled from GORM models'
-              ],
-              [
-                '<code>internal/models/</code>',
-                'GORM models with typed repository accessors'
+                '<code>internal/modules/register.go</code>',
+                'Module registry — new domains are registered here by <code>grove make:resource</code>'
               ],
               [
                 '<code>internal/routes/</code>',
-                'Route registration — fuego typed routes wired to controllers'
-              ],
-              [
-                '<code>internal/services/</code>',
-                'Business logic service layer — isolates business calculations and data manipulations'
+                'Global middleware, health checks, and module mounting via <code>modules.Mount</code>'
               ],
               [
                 '<code>internal/tests/</code>',
-                'gest spec files — <code>main.go</code> is auto-created by <code>grove make:test</code>'
+                'gest v2 test files — created by <code>grove make:test</code>'
               ],
               [
                 '<code>migrations/</code>',
@@ -1587,8 +1597,12 @@ func TestPost(t *testing.T) {
                 'Observability stack configuration: Prometheus, Grafana, Loki, Jaeger'
               ],
               [
-                '<code>infra/compose.yml</code>',
-                'Spins up the full observability stack locally with a single command'
+                '<code>docker-compose.yml</code>',
+                'PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana — at project root'
+              ],
+              [
+                '<code>atlas.hcl</code>',
+                'Atlas configuration — program mode via <code>cmd/atlas</code>'
               ],
               [
                 '<code>grove.toml</code>',
@@ -1604,21 +1618,24 @@ func TestPost(t *testing.T) {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Models are plain Go structs with GORM tags. Every generated model ships with a typed <strong>Repository</strong> accessor that gives you a clean, generic CRUD interface without writing boilerplate.'
+            text: 'Models live in each domain module (<code>internal/modules/&lt;domain&gt;/model.go</code>) as plain Go structs with GORM tags. Every model registers itself for Atlas via <code>database.Register</code> in <code>init()</code> and ships with a typed <strong>Repo</strong> accessor.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/models/post.go',
-            code: `package models
+            label: 'internal/modules/posts/model.go',
+            code: `package posts
 
 import (
 	"time"
 
-	"your/module/internal/app"
-	"your/module/internal/database"
+	"your/module/internal/app/database"
 	"gorm.io/gorm"
 )
+
+func init() {
+	database.Register(&Post{})
+}
 
 type Post struct {
 	ID        string         \`gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"\`
@@ -1633,8 +1650,12 @@ type Post struct {
 
 func (Post) TableName() string { return "posts" }
 
-func Posts() *database.Repository[Post] {
-	return database.New[Post](app.DB)
+type Repo struct {
+	*database.Repository[Post]
+}
+
+func Posts(db *gorm.DB) *Repo {
+	return &Repo{Repository: database.New[Post](db)}
 }`
           },
           {
@@ -1645,24 +1666,26 @@ func Posts() *database.Repository[Post] {
             type: 'code',
             lang: 'go',
             label: 'usage',
-            code: `// Find by primary key
-post, err := models.Posts().Find(id)
+            code: `repo := posts.Posts(db)
+
+// Find by primary key
+post, err := repo.Find(id)
 
 // List all
-posts, err := models.Posts().All()
+all, err := repo.All()
 
 // Create
-err := models.Posts().Create(&post)
+err := repo.Create(&post)
 
 // Update
-err := models.Posts().Update(&post)
+err := repo.Update(&post)
 
 // Soft-delete
-err := models.Posts().Delete(id)
+err := repo.Delete(id)
 
 // Custom query — drop down to GORM when needed
-var result []models.Post
-err := models.Posts().DB().Where("published = ?", true).Find(&result).Error`
+var result []posts.Post
+err := repo.DB().Where("published = ?", true).Find(&result).Error`
           }
         ]
       },
@@ -1672,39 +1695,43 @@ err := models.Posts().DB().Where("published = ?", true).Find(&result).Error`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Services live in <code>internal/services/</code> and house your core business logic, orchestrate database transactions, and handle operations independent of HTTP requests. To facilitate unit testing, services define a repository interface for the models they need to manage.'
+            text: 'Services live in <code>internal/modules/&lt;domain&gt;/service.go</code> and house your core business logic, orchestrate database transactions, and handle operations independent of HTTP requests. Each module exposes <code>WireService</code> for dependency injection from the controller.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/services/post_service.go',
-            code: `package services
+            label: 'internal/modules/posts/service.go',
+            code: `package posts
 
 import (
 	"context"
-	"your/module/internal/models"
+	"gorm.io/gorm"
 )
 
-// PostRepository abstracts the data operations so the service can be unit tested with mock implementations.
-type PostRepository interface {
-	Create(entity *models.Post) error
-	Update(entity *models.Post) error
-	Delete(id any) error
-	Find(id any) (*models.Post, error)
-	Paginate(page, perPage int) ([]models.Post, int64, error)
+type Service interface {
+	CreatePost(ctx context.Context, item *Post) error
+	GetPostByID(ctx context.Context, id string) (*Post, error)
 }
 
-type PostService struct {
-	repo PostRepository
+type service struct {
+	repo *Repo
 }
 
-func NewPostService(repo PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewService(repo *Repo) Service {
+	return &service{repo: repo}
 }
 
-func (s *PostService) CreatePost(ctx context.Context, item *models.Post) error {
+func WireService(db *gorm.DB) Service {
+	return NewService(Posts(db))
+}
+
+func (s *service) CreatePost(ctx context.Context, item *Post) error {
 	// Implement validations, triggers, or custom logic here before database persistence
 	return s.repo.Create(item)
+}
+
+func (s *service) GetPostByID(ctx context.Context, id string) (*Post, error) {
+	return s.repo.Find(id)
 }`
           }
         ]
@@ -1715,44 +1742,47 @@ func (s *PostService) CreatePost(ctx context.Context, item *models.Post) error {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Controllers live in <code>internal/controllers/</code> and bind HTTP endpoints to service layers under the MCS architecture. In v2.1.0, controllers are written as Go structs receiving injected services, allowing you to wires dependencies explicitly and keep logic highly testable.'
+            text: 'Controllers live in <code>internal/modules/&lt;domain&gt;/controller.go</code> and bind HTTP endpoints to service layers under the modular MCS architecture. In v2.2.0, each module exposes <code>Wire</code> and <code>Mount</code> helpers — the controller wires its own dependencies and registers routes on the API group.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/controllers/post-controller.go',
-            code: `package controllers
+            label: 'internal/modules/posts/controller.go',
+            code: `package posts
 
 import (
 	"net/http"
 
-	"your/module/internal/dto"
-	"your/module/internal/models"
-	"your/module/internal/services"
 	"github.com/alexedwards/scs/v2"
+	"your/module/internal/app/router"
 	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
 )
 
-type PostController struct {
-	session     *scs.SessionManager
-	postService *services.PostService
+type Controller struct {
+	service Service
 }
 
-func NewPostController(
-	session *scs.SessionManager,
-	postService *services.PostService,
-) *PostController {
-	return &PostController{
-		session:     session,
-		postService: postService,
-	}
+func NewController(service Service) *Controller {
+	return &Controller{service: service}
 }
 
-// Get handles GET /posts/:post_id
-func (ctl *PostController) Get(c fuego.ContextNoBody) (*dto.PostResponse, error) {
+func Wire(db *gorm.DB) *Controller {
+	return NewController(WireService(db))
+}
+
+func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
+	group := fuego.Group(api, "/posts")
+
+	router.Get(group, "/{post_id}", ctrl.GetPost, GetPostDoc, session)
+	router.Post(group, "/", ctrl.CreatePost, CreatePostDoc, session)
+}
+
+// GetPost handles GET /posts/:post_id
+func (ctrl *Controller) GetPost(c fuego.ContextNoBody) (*PostResponse, error) {
 	id := c.PathParam("post_id")
 
-	post, err := ctl.postService.GetPost(c.Context(), id)
+	post, err := ctrl.service.GetPostByID(c.Context(), id)
 	if err != nil {
 		return nil, fuego.HTTPError{
 			Status: http.StatusNotFound,
@@ -1762,26 +1792,26 @@ func (ctl *PostController) Get(c fuego.ContextNoBody) (*dto.PostResponse, error)
 	return toPostDTO(post), nil
 }
 
-// Create handles POST /posts
-func (ctl *PostController) Create(c fuego.ContextWithBody[dto.CreatePostRequest]) (*dto.PostResponse, error) {
+// CreatePost handles POST /posts
+func (ctrl *Controller) CreatePost(c fuego.ContextWithBody[CreatePostRequest]) (*PostResponse, error) {
 	body, err := c.Body()
 	if err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusBadRequest, Err: err}
 	}
 
-	post := &models.Post{
-		Title:    body.Title,
-		Content:  body.Content,
+	post := &Post{
+		Title:   body.Title,
+		Content: body.Content,
 	}
 
-	if err := ctl.postService.CreatePost(c.Context(), post); err != nil {
+	if err := ctrl.service.CreatePost(c.Context(), post); err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusUnprocessableEntity, Err: err}
 	}
 	return toPostDTO(post), nil
 }
 
-func toPostDTO(m *models.Post) *dto.PostResponse {
-	return &dto.PostResponse{
+func toPostDTO(m *Post) *PostResponse {
+	return &PostResponse{
 		ID:        m.ID,
 		Title:     m.Title,
 		Content:   m.Content,
@@ -1797,13 +1827,13 @@ func toPostDTO(m *models.Post) *dto.PostResponse {
         blocks: [
           {
             type: 'paragraph',
-            text: 'DTOs (Data Transfer Objects) live in <code>internal/dto/</code> and define the exact shape of your API requests and responses. Keeping them separate from models means your API contract is independent of your database schema.'
+            text: 'DTOs (Data Transfer Objects) live in <code>internal/modules/&lt;domain&gt;/dto.go</code> and define the exact shape of your API requests and responses. Keeping them in the same module as the model means your API contract is colocated with the domain it serves.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/dto/post-dto.go',
-            code: `package dto
+            label: 'internal/modules/posts/dto.go',
+            code: `package posts
 
 type CreatePostRequest struct {
 	Title    string \`json:"title"     validate:"required,min=1,max=255"\`
@@ -1842,7 +1872,7 @@ type PostsListResponse struct {
         blocks: [
           {
             type: 'paragraph',
-            text: "All routes are registered in <code>internal/routes/routes.go</code>. fuego's route functions are fully typed — the compiler catches mismatched handler signatures before runtime."
+            text: 'Global routes and middleware are configured in <code>internal/routes/routes.go</code>. Domain modules register themselves via <code>modules.Mount</code>, which iterates the registry in <code>internal/modules/register.go</code>. Each module\'s <code>Mount</code> method wires its own routes — no manual per-resource registration needed.'
           },
           {
             type: 'code',
@@ -1851,62 +1881,58 @@ type PostsListResponse struct {
             code: `package routes
 
 import (
-	"your/module/internal/app"
-	"your/module/internal/controllers"
-	"your/module/internal/middleware"
+	"net/http"
 
+	"github.com/alexedwards/scs/v2"
+	"your/module/internal/app/middleware"
+	"your/module/internal/modules"
 	"github.com/go-fuego/fuego"
+	"github.com/gomodule/redigo/redis"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"gorm.io/gorm"
 )
 
-// SetupRoutes configures all routes using app globals.
-func SetupRoutes(s *fuego.Server) {
-	// OpenTelemetry Middleware
-	fuego.Use(s, otelhttp.NewMiddleware("grove-app"))
-
-	// Route tag middleware — reads r.Pattern (Go 1.22+) and sets http.route.
+func SetupRoutes(
+	s *fuego.Server,
+	db *gorm.DB,
+	redisPool *redis.Pool,
+	session *scs.SessionManager,
+	metricsHandler http.Handler,
+) {
+	fuego.Use(s, otelhttp.NewMiddleware("my-api"))
 	fuego.Use(s, middleware.RouteTagMiddleware)
-
-	// CORS Middleware global
 	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
+	fuego.Use(s, middleware.SessionMiddleware(session))
 
-	// Session Middleware global
-	fuego.Use(s, middleware.SessionMiddleware(app.Session))
-
-	// Health check
 	fuego.Get(s, "/", healthCheck)
-	fuego.Get(s, "/health", healthCheckDetailed)
+	fuego.Get(s, "/health", healthCheckDetailed(db, redisPool))
+	fuego.GetStd(s, "/metrics", metricsHandler.ServeHTTP)
 
-	// Prometheus metrics endpoint
-	fuego.GetStd(s, "/metrics", app.Metrics.ServeHTTP)
-
-	// API v1
 	api := fuego.Group(s, "/api/v1")
+	modules.Mount(api, modules.Boot{DB: db, Session: session})
+}`
+          },
+          {
+            type: 'code',
+            lang: 'go',
+            label: 'internal/modules/register.go',
+            code: `package modules
 
-	// ========== AUTH ROUTES (Public) ==========
-	auth := fuego.Group(api, "/auth")
-	authController := controllers.NewAuthController(app.Session)
-	fuego.Post(auth, "/login", authController.Login)
-	fuego.Post(auth, "/register", authController.Register)
+import (
+	"your/module/internal/modules/auth"
+	"your/module/internal/modules/posts"
+	"github.com/go-fuego/fuego"
+)
 
-	// ========== AUTH ROUTES (Private) ==========
-	authPrivate := fuego.Group(auth, "/")
-	fuego.Use(authPrivate, middleware.AuthRequired(app.Session))
-	fuego.Post(authPrivate, "/logout", authController.Logout)
-	fuego.Get(authPrivate, "/me", authController.Me)
+var registry = []Factory{
+	func(b Boot) Module { return posts.Wire(b.DB) },
+	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
+}
 
-	// ========== POSTS ROUTES (Private) ==========
-	posts := fuego.Group(api, "/posts")
-	fuego.Use(posts, middleware.AuthRequired(app.Session))
-
-	postsRepo := models.Posts()
-	postsService := services.NewPostService(postsRepo)
-	postsController := controllers.NewPostController(app.Session, postsService)
-	fuego.Get(posts, "/", postsController.List)
-	fuego.Post(posts, "/", postsController.Create)
-	fuego.Get(posts, "/{post_id}", postsController.Get)
-	fuego.Put(posts, "/{post_id}", postsController.Update)
-	fuego.Delete(posts, "/{post_id}", postsController.Delete)
+func Mount(api *fuego.Server, boot Boot) {
+	for _, factory := range registry {
+		factory(boot).Mount(api, boot.Session)
+	}
 }`
           },
           {
@@ -1928,7 +1954,7 @@ func SetupRoutes(s *fuego.Server) {
             lang: 'bash',
             label: 'typical workflow',
             code: `# 1. Add a new field to your model
-#    e.g. add "PublishedAt *time.Time" to models/post.go
+#    e.g. add "PublishedAt *time.Time" to internal/modules/posts/model.go
 
 # 2. Generate the migration
 grove make:migration add_published_at_to_posts
@@ -2039,31 +2065,34 @@ DATABASE_URL=postgresql://\${DB_USER}:\${DB_PASSWORD}@\${DB_HOST}:\${DB_PORT}/\$
         blocks: [
           {
             type: 'paragraph',
-            text: '<code>atlas.hcl</code> sits at the project root and tells Atlas how to connect to your database and where to find your GORM models for diffing.'
+            text: '<code>atlas.hcl</code> sits at the project root and tells Atlas how to connect to your database. GORM models are loaded via <strong>program mode</strong> — Atlas runs <code>go run ./cmd/atlas</code>, which imports every module and reads models registered via <code>database.Register</code> in each <code>model.go</code>.'
           },
           {
             type: 'code',
             lang: 'bash',
             label: 'atlas.hcl',
-            code: `data "composite_schema" "app" {
-  # Load your GORM models into Atlas via the Go loader
-  schema "public" {
-    url = "ent://internal/models"
-  }
+            code: `data "external_schema" "gorm" {
+  program = [
+    "go",
+    "run",
+    "-mod=mod",
+    "./cmd/atlas",
+  ]
 }
 
 env "local" {
-  src = data.composite_schema.app.url
-  dev = "docker://postgres/15/dev?search_path=public"
+  src = data.external_schema.gorm.url
   url = getenv("DATABASE_URL")
+  dev = "docker://postgres/15/dev"
   migration {
     dir = "file://migrations"
   }
 }
 
 env "dev" {
-  src = data.composite_schema.app.url
+  src = data.external_schema.gorm.url
   url = getenv("DATABASE_URL")
+  dev = "docker://postgres/15/dev"
   migration {
     dir = "file://migrations"
   }
@@ -2072,7 +2101,7 @@ env "dev" {
           {
             type: 'note',
             kind: 'tip',
-            text: 'The <code>local</code> environment uses a Docker-based shadow database for diffing. Make sure Docker is running when executing <code>grove make:migration</code> locally.'
+            text: 'The <code>local</code> environment uses a Docker-based shadow database for diffing. Make sure Docker is running when executing <code>grove make:migration</code> locally. Grove may cache the Atlas GORM provider binary under <code>.grove/bin/atlas-gorm</code> for faster subsequent runs.'
           }
         ]
       },
@@ -2082,69 +2111,30 @@ env "dev" {
         blocks: [
           {
             type: 'paragraph',
-            text: 'The <code>internal/app/</code> package holds shared singletons — the database connection, config, and logger. Everything is initialized once at startup and reused across the application.'
+            text: 'The <code>internal/app/</code> package holds shared infrastructure — database, Redis, session, metrics, and config. Everything is initialized once at startup in <code>cmd/api/main.go</code> and passed to modules via <code>modules.Boot</code>.'
           },
           {
             type: 'code',
             lang: 'go',
-            label: 'internal/app/app.go',
-            code: `package app
-
-import (
-	"log"
-	"os"
-
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-)
-
-// DB is the shared database connection.
-var DB *gorm.DB
-
-// Init connects to the database and stores the handle in DB.
-// Call this once from main() before starting the server.
-func Init() {
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		log.Fatal("DATABASE_URL is not set")
-	}
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
-	}
-
-	DB = db
-}`
-          },
-          {
-            type: 'code',
-            lang: 'go',
-            label: 'cmd/api/main.go',
+            label: 'cmd/api/main.go (simplified)',
             code: `package main
 
 import (
-	"your/module/internal/app"
+	"your/module/internal/app/config"
 	"your/module/internal/routes"
 	"github.com/go-fuego/fuego"
 )
 
 func main() {
-	// Initialize shared singletons
-	app.Init()
+	db := config.InitDB()
+	redisPool := config.InitRedis()
+	session := config.InitSession(redisPool)
+	metrics := config.InitMetrics()
 
-	// Create fuego server
-	s := fuego.NewServer(
-		fuego.WithAddr(":8080"),
-	)
+	s := fuego.NewServer(fuego.WithAddr(":8080"))
 
-	// Register all routes
-	routes.Register(s)
+	routes.SetupRoutes(s, db, redisPool, session, metrics)
 
-	// Start — fuego also serves /swagger automatically
 	s.Run()
 }`
           }

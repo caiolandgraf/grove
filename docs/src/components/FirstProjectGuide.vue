@@ -305,7 +305,7 @@
             <span class="status-item status-step">
               Step {{ currentStep + 1 }}/{{ steps.length }} — {{ steps[currentStep].shortTitle }}
             </span>
-            <span class="status-item status-grove">grove v2.1.0</span>
+            <span class="status-item status-grove">grove v2.2.0</span>
           </div>
         </div>
 
@@ -361,21 +361,21 @@ const steps = [
   {
     shortTitle: 'Scaffold',
     title: '1. Create a New Project',
-    description: `Run <code>grove setup</code> to scaffold a clean Grove codebase. It downloads the template from <code>caiolandgraf/grove-base</code>, configures environment vars, and installs Go modules.`,
+    description: `Run <code>grove setup</code> to scaffold a clean Grove codebase. It downloads the template from <code>caiolandgraf/go-project-base</code>, configures environment vars, and installs Go modules.`,
     actionText: 'grove setup blog-api',
     successMessage: 'Project scaffolded successfully!'
   },
   {
     shortTitle: 'Resource',
     title: '2. Generate a Resource Layer',
-    description: `Grove follows a strict **Model-Controller-Service (MCS)** pattern. Running <code>grove make:resource Post</code> generates the database model, DTO, service, controller, and routes wireup in one sweep.`,
+    description: `Grove follows a modular **Model-Controller-Service (MCS)** pattern. Running <code>grove make:resource Post</code> scaffolds a self-contained domain package under <code>internal/modules/posts/</code> and registers it in <code>internal/modules/register.go</code>.`,
     actionText: 'grove make:resource Post',
-    successMessage: 'Model, Service, Controller & routes created!'
+    successMessage: 'Module scaffolded & registered!'
   },
   {
     shortTitle: 'Fields',
     title: '3. Add Fields to Model & DTO',
-    description: `Open <code>post.go</code> and <code>post-dto.go</code> in the editor. We will add <code>Title</code>, <code>Content</code>, and <code>Published</code> fields along GORM metadata and validation tags.`,
+    description: `Open <code>model.go</code> and <code>dto.go</code> inside <code>internal/modules/posts/</code>. We will add <code>Title</code>, <code>Content</code>, and <code>Published</code> fields along GORM metadata and validation tags.`,
     actionText: 'Apply custom fields to Post structs',
     successMessage: 'Fields & validation tags applied.'
   },
@@ -604,220 +604,101 @@ func HealthCheck() map[string]string {
       lang: 'go',
       path: 'internal/routes',
       label: 'routes.go',
+      code: `package routes
+
+import (
+	"net/http"
+
+	"github.com/alexedwards/scs/v2"
+	"blog-api/internal/modules"
+	"blog-api/internal/app/middleware"
+	"github.com/go-fuego/fuego"
+	"github.com/gomodule/redigo/redis"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"gorm.io/gorm"
+)
+
+func SetupRoutes(
+	s *fuego.Server,
+	db *gorm.DB,
+	redisPool *redis.Pool,
+	session *scs.SessionManager,
+	metricsHandler http.Handler,
+) {
+	fuego.Use(s, otelhttp.NewMiddleware("blog-api"))
+	fuego.Use(s, middleware.RouteTagMiddleware)
+	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
+	fuego.Use(s, middleware.SessionMiddleware(session))
+
+	fuego.Get(s, "/", healthCheck)
+	fuego.Get(s, "/health", healthCheckDetailed(db, redisPool))
+	fuego.GetStd(s, "/metrics", metricsHandler.ServeHTTP)
+
+	api := fuego.Group(s, "/api/v1")
+	modules.Mount(api, modules.Boot{DB: db, Session: session})
+}`
+    },
+    'register.go': {
+      lang: 'go',
+      path: 'internal/modules',
+      label: 'register.go',
       code: currentStep.value >= 1
-        ? `package routes
+        ? `package modules
 
 import (
-	"blog-api/internal/app"
-	"blog-api/internal/app/config"
-	"blog-api/internal/app/middleware"
-	"blog-api/internal/controllers"
-	"blog-api/internal/models"
-	"blog-api/internal/services"
+	"blog-api/internal/modules/auth"
+	"blog-api/internal/modules/posts"
+	"blog-api/internal/modules/users"
 	"github.com/go-fuego/fuego"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-type HealthCheckResponse struct {
-	Status string \`json:"status"\`
+var registry = []Factory{
+	func(b Boot) Module { return users.Wire(b.DB) },
+	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
+	func(b Boot) Module { return posts.Wire(b.DB) },
 }
 
-type HealthCheckDetailedResponse struct {
-	Status   string            \`json:"status"\`
-	Services map[string]string \`json:"services"\`
-}
-
-// SetupRoutes configures all routes using app globals
-func SetupRoutes(s *fuego.Server) {
-	// OpenTelemetry / Metrics Middleware
-	if config.Env.OtelEnabled || config.Env.MetricsEnabled {
-		fuego.Use(s, otelhttp.NewMiddleware(config.Env.OtelServiceName))
-		fuego.Use(s, middleware.RouteTagMiddleware)
+func Mount(api *fuego.Server, boot Boot) {
+	for _, factory := range registry {
+		factory(boot).Mount(api, boot.Session)
 	}
-
-	// CORS Middleware global
-	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
-
-	// Session Middleware global
-	fuego.Use(s, middleware.SessionMiddleware(app.Session))
-
-	// Health check
-	fuego.Get(s, "/", healthCheck)
-	fuego.Get(s, "/health", healthCheckDetailed)
-
-	// API v1
-	api := fuego.Group(s, "/api/v1")
-
-	// Services instantiation
-	userRepo := models.Users()
-	userService := services.NewUserService(userRepo)
-	authService := services.NewAuthService(userRepo)
-
-	// ========== AUTH ROUTES ==========
-	auth := fuego.Group(api, "/auth")
-	authController := controllers.NewAuthController(app.Session, authService, userService)
-	fuego.Post(auth, "/login", authController.Login)
-	fuego.Get(auth, "/me", authController.Me)
-
-	// ========== USERS ROUTES ==========
-	users := fuego.Group(api, "/users")
-	userController := controllers.NewUserController(app.Session, userService)
-	fuego.Use(users, middleware.AuthRequired(app.Session))
-	fuego.Get(users, "/", userController.List)
-
-	// ── Post routes (generated by grove make:resource Post) ─
-	postRepo := models.Posts()
-	postService := services.NewPostService(postRepo)
-	postController := controllers.NewPostController(app.Session, postService)
-
-	postsGroup := fuego.Group(s, "/api/v1/posts")
-	fuego.Get(postsGroup, "/", postController.List)
-	fuego.Post(postsGroup, "/", postController.Create)
-	fuego.Get(postsGroup, "/{post_id}", postController.Get)
-	fuego.Put(postsGroup, "/{post_id}", postController.Update)
-	fuego.Delete(postsGroup, "/{post_id}", postController.Delete)
-}
-
-func healthCheck(c fuego.ContextNoBody) (*HealthCheckResponse, error) {
-	return &HealthCheckResponse{Status: "Ok"}, nil
-}
-
-func healthCheckDetailed(c fuego.ContextNoBody) (*HealthCheckDetailedResponse, error) {
-	return &HealthCheckDetailedResponse{
-		Status:   "OK",
-		Services: app.HealthCheck(),
-	}, nil
 }`
-        : `package routes
+        : `package modules
 
 import (
-	"blog-api/internal/app"
-	"blog-api/internal/app/config"
-	"blog-api/internal/app/middleware"
-	"blog-api/internal/controllers"
-	"blog-api/internal/models"
-	"blog-api/internal/services"
+	"blog-api/internal/modules/auth"
+	"blog-api/internal/modules/users"
 	"github.com/go-fuego/fuego"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-type HealthCheckResponse struct {
-	Status string \`json:"status"\`
+var registry = []Factory{
+	func(b Boot) Module { return users.Wire(b.DB) },
+	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
 }
 
-type HealthCheckDetailedResponse struct {
-	Status   string            \`json:"status"\`
-	Services map[string]string \`json:"services"\`
-}
-
-// SetupRoutes configures all routes using app globals
-func SetupRoutes(s *fuego.Server) {
-	// OpenTelemetry / Metrics Middleware
-	if config.Env.OtelEnabled || config.Env.MetricsEnabled {
-		fuego.Use(s, otelhttp.NewMiddleware(config.Env.OtelServiceName))
-		fuego.Use(s, middleware.RouteTagMiddleware)
+func Mount(api *fuego.Server, boot Boot) {
+	for _, factory := range registry {
+		factory(boot).Mount(api, boot.Session)
 	}
-
-	// CORS Middleware global
-	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
-
-	// Session Middleware global
-	fuego.Use(s, middleware.SessionMiddleware(app.Session))
-
-	// Health check
-	fuego.Get(s, "/", healthCheck)
-	fuego.Get(s, "/health", healthCheckDetailed)
-
-	// API v1
-	api := fuego.Group(s, "/api/v1")
-
-	// Services instantiation
-	userRepo := models.Users()
-	userService := services.NewUserService(userRepo)
-	authService := services.NewAuthService(userRepo)
-
-	// ========== AUTH ROUTES ==========
-	auth := fuego.Group(api, "/auth")
-	authController := controllers.NewAuthController(app.Session, authService, userService)
-	fuego.Post(auth, "/login", authController.Login)
-	fuego.Get(auth, "/me", authController.Me)
-
-	// ========== USERS ROUTES ==========
-	users := fuego.Group(api, "/users")
-	userController := controllers.NewUserController(app.Session, userService)
-	fuego.Use(users, middleware.AuthRequired(app.Session))
-	fuego.Get(users, "/", userController.List)
-}
-
-func healthCheck(c fuego.ContextNoBody) (*HealthCheckResponse, error) {
-	return &HealthCheckResponse{Status: "Ok"}, nil
-}
-
-func healthCheckDetailed(c fuego.ContextNoBody) (*HealthCheckDetailedResponse, error) {
-	return &HealthCheckDetailedResponse{
-		Status:   "OK",
-		Services: app.HealthCheck(),
-	}, nil
 }`
     },
-    'user.go': {
+    'model.go': {
       lang: 'go',
-      path: 'internal/models',
-      label: 'user.go',
-      code: `package models
-
-import (
-	"time"
-
-	"blog-api/internal/app"
-	"blog-api/internal/app/database"
-	"gorm.io/gorm"
-)
-
-type User struct {
-	ID        string         \`gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"\`
-	Name      string         \`gorm:"type:varchar(255);not null"                     json:"name"\`
-	Email     string         \`gorm:"type:varchar(255);uniqueIndex;not null"         json:"email"\`
-	Password  string         \`gorm:"type:varchar(255);not null"                     json:"-"\`
-	CreatedAt time.Time      \`gorm:"autoCreateTime"                                 json:"created_at"\`
-	UpdatedAt time.Time      \`gorm:"autoUpdateTime"                                 json:"updated_at"\`
-	DeletedAt gorm.DeletedAt \`gorm:"index"                                          json:"-"\`
-}
-
-func (User) TableName() string { return "users" }
-
-type usersRepository struct {
-	*database.Repository[User]
-}
-
-func Users() *usersRepository {
-	return &usersRepository{
-		Repository: database.New[User](app.DB),
-	}
-}
-
-func (r *usersRepository) FindUserByEmail(email string) (*User, error) {
-	return Users().FirstBy("email", email)
-}
-
-func (r *usersRepository) Exists(email string) (bool, error) {
-	return r.Where("email", email).Exists()
-}`
-    },
-    'post.go': {
-      lang: 'go',
-      path: 'internal/models',
-      label: 'post.go',
+      path: 'internal/modules/posts',
+      label: 'model.go',
       code: customized
-        ? `package models
+        ? `package posts
 
 import (
 	"time"
 
-	"blog-api/internal/app"
 	"blog-api/internal/app/database"
 	"gorm.io/gorm"
 )
+
+func init() {
+	database.Register(&Post{})
+}
 
 type Post struct {
 	ID        string         \`gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"\`
@@ -831,27 +712,26 @@ type Post struct {
 
 func (Post) TableName() string { return "posts" }
 
-type postsRepository struct {
+type Repo struct {
 	*database.Repository[Post]
 }
 
-func Posts() *postsRepository {
-	return &postsRepository{
-		Repository: database.New[Post](app.DB),
-	}
+func Posts(db *gorm.DB) *Repo {
+	return &Repo{Repository: database.New[Post](db)}
 }`
-        : `package models
+        : `package posts
 
 import (
 	"time"
 
-	"blog-api/internal/app"
 	"blog-api/internal/app/database"
 	"gorm.io/gorm"
 )
 
-// Post — generated by grove make:resource Post.
-// Add your domain fields below.
+func init() {
+	database.Register(&Post{})
+}
+
 type Post struct {
 	ID        string         \`gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"\`
 	CreatedAt time.Time      \`gorm:"autoCreateTime"                                 json:"created_at"\`
@@ -862,22 +742,20 @@ type Post struct {
 
 func (Post) TableName() string { return "posts" }
 
-type postsRepository struct {
+type Repo struct {
 	*database.Repository[Post]
 }
 
-func Posts() *postsRepository {
-	return &postsRepository{
-		Repository: database.New[Post](app.DB),
-	}
+func Posts(db *gorm.DB) *Repo {
+	return &Repo{Repository: database.New[Post](db)}
 }`
     },
-    'post-dto.go': {
+    'dto.go': {
       lang: 'go',
-      path: 'internal/dto',
-      label: 'post-dto.go',
+      path: 'internal/modules/posts',
+      label: 'dto.go',
       code: customized
-        ? `package dto
+        ? `package posts
 
 type CreatePostRequest struct {
 	Title     string \`json:"title"     validate:"required,min=3,max=255"\`
@@ -902,13 +780,10 @@ type PostsListResponse struct {
 	Items []PostResponse \`json:"items"\`
 	Total int            \`json:"total"\`
 }`
-        : `package dto
+        : `package posts
 
-// CreatePostRequest — generated stub.
-// Add validated fields matching your model.
 type CreatePostRequest struct {
 	// TODO: add fields with validate tags
-	// Example: Title string \`json:"title" validate:"required,min=3"\`
 }
 
 type UpdatePostRequest struct {
@@ -924,69 +799,65 @@ type PostsListResponse struct {
 	Total int            \`json:"total"\`
 }`
     },
-    'post_service.go': {
+    'service.go': {
       lang: 'go',
-      path: 'internal/services',
-      label: 'post_service.go',
-      code: `package services
+      path: 'internal/modules/posts',
+      label: 'service.go',
+      code: `package posts
 
-import (
-	"context"
-	"blog-api/internal/models"
-)
+import "gorm.io/gorm"
 
-// PostRepository defines the data access contract for Post.
-// Implemented by postsRepository in internal/models/post.go.
-type PostRepository interface {
-	Create(entity *models.Post) error
-	Update(entity *models.Post) error
-	Delete(id any) error
-	Find(id any) (*models.Post, error)
-	Paginate(page, perPage int) ([]models.Post, int64, error)
+type Service interface {
+	// TODO: add business methods (CreatePost, GetPostByID, etc.)
 }
 
-type PostService struct {
-	repo PostRepository
+type service struct {
+	repo *Repo
 }
 
-func NewPostService(repo PostRepository) *PostService {
-	return &PostService{repo: repo}
+func NewService(repo *Repo) Service {
+	return &service{repo: repo}
 }
 
-// TODO: Adicionar métodos de negócio aqui (ex: CreatePost, GetPost, etc.)`
+func WireService(db *gorm.DB) Service {
+	return NewService(Posts(db))
+}`
     },
-    'post-controller.go': {
+    'controller.go': {
       lang: 'go',
-      path: 'internal/controllers',
-      label: 'post-controller.go',
-      code: `package controllers
+      path: 'internal/modules/posts',
+      label: 'controller.go',
+      code: `package posts
 
 import (
 	"github.com/alexedwards/scs/v2"
-	"blog-api/internal/services"
+	"blog-api/internal/app/router"
 	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
 )
 
-type PostController struct {
-	session     *scs.SessionManager
-	postService *services.PostService
+type Controller struct {
+	service Service
 }
 
-func NewPostController(
-	session *scs.SessionManager,
-	postService *services.PostService,
-) *PostController {
-	return &PostController{
-		session:     session,
-		postService: postService,
-	}
+func NewController(service Service) *Controller {
+	return &Controller{service: service}
 }
 
-// TODO: Adicionar os handlers HTTP delegando a lógica para ctl.postService`
+func Wire(db *gorm.DB) *Controller {
+	return NewController(WireService(db))
+}
+
+func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
+	group := fuego.Group(api, "/posts")
+	router.Get(group, "/", ctrl.ListPosts, ListPostsDoc, session)
+	router.Post(group, "/", ctrl.CreatePost, CreatePostDoc, session)
+	// TODO: implement remaining handlers delegating to ctrl.service
+}`
     },
     'migration.sql': {
       lang: 'sql',
-      path: 'internal/app/database/migrations',
+      path: 'migrations',
       label: '20260610_create_posts_table.sql',
       code: `-- Atlas generated migration
 -- grove make:migration create_posts_table
@@ -1024,36 +895,30 @@ const explorerTree = computed(() => {
     { name: 'cmd/', isFolder: true, depth: 1, path: 'cmd' },
     { name: 'api/', isFolder: true, depth: 2, path: 'cmd/api' },
     { name: 'main.go', depth: 3, lang: 'go', tabId: 'main.go', path: 'cmd/api/main.go', highlight: s === 0 },
+    { name: 'atlas/', isFolder: true, depth: 2, path: 'cmd/atlas' },
     { name: 'scalar/', isFolder: true, depth: 2, path: 'cmd/scalar' },
-    { name: 'seed/', isFolder: true, depth: 2, path: 'cmd/seed' },
     { name: 'internal/', isFolder: true, depth: 1, path: 'internal' },
     { name: 'app/', isFolder: true, depth: 2, path: 'internal/app' },
     { name: 'app.go', depth: 3, lang: 'go', tabId: 'app.go', path: 'internal/app/app.go', highlight: s === 0 },
     { name: 'config/', isFolder: true, depth: 3, path: 'internal/app/config' },
     { name: 'database/', isFolder: true, depth: 3, path: 'internal/app/database' },
-    { name: 'migrations/', isFolder: true, depth: 4, path: 'internal/app/database/migrations' },
-    ...(s >= 3 ? [{ name: '20260610_create_posts_table.sql', depth: 5, lang: 'sql', tabId: 'migration.sql', path: 'internal/app/database/migrations/20260610_create_posts_table.sql', highlight: s === 3 }] : []),
     { name: 'middleware/', isFolder: true, depth: 3, path: 'internal/app/middleware' },
-    { name: 'controllers/', isFolder: true, depth: 2, path: 'internal/controllers' },
-    { name: 'auth-controller.go', depth: 3, lang: 'go', path: 'internal/controllers/auth-controller.go' },
-    { name: 'user-controller.go', depth: 3, lang: 'go', path: 'internal/controllers/user-controller.go' },
-    ...(s >= 1 ? [{ name: 'post-controller.go', depth: 3, lang: 'go', tabId: 'post-controller.go', path: 'internal/controllers/post-controller.go', highlight: s === 1 }] : []),
-    { name: 'dto/', isFolder: true, depth: 2, path: 'internal/dto' },
-    { name: 'auth-dto.go', depth: 3, lang: 'go', path: 'internal/dto/auth-dto.go' },
-    { name: 'user-dto.go', depth: 3, lang: 'go', path: 'internal/dto/user-dto.go' },
-    ...(s >= 1 ? [{ name: 'post-dto.go', depth: 3, lang: 'go', tabId: 'post-dto.go', path: 'internal/dto/post-dto.go', highlight: s === 1 || s === 2 }] : []),
-    { name: 'models/', isFolder: true, depth: 2, path: 'internal/models' },
-    { name: 'user.go', depth: 3, lang: 'go', tabId: 'user.go', path: 'internal/models/user.go' },
-    ...(s >= 1 ? [{ name: 'post.go', depth: 3, lang: 'go', tabId: 'post.go', path: 'internal/models/post.go', highlight: s === 1 || s === 2 }] : []),
+    { name: 'router/', isFolder: true, depth: 3, path: 'internal/app/router' },
+    { name: 'modules/', isFolder: true, depth: 2, path: 'internal/modules' },
+    { name: 'register.go', depth: 3, lang: 'go', tabId: 'register.go', path: 'internal/modules/register.go', highlight: s === 1 },
+    { name: 'auth/', isFolder: true, depth: 3, path: 'internal/modules/auth' },
+    { name: 'users/', isFolder: true, depth: 3, path: 'internal/modules/users' },
+    { name: 'posts/', isFolder: true, depth: 3, path: 'internal/modules/posts' },
+    ...(s >= 1 ? [{ name: 'model.go', depth: 4, lang: 'go', tabId: 'model.go', path: 'internal/modules/posts/model.go', highlight: s === 1 || s === 2 }] : []),
+    ...(s >= 1 ? [{ name: 'dto.go', depth: 4, lang: 'go', tabId: 'dto.go', path: 'internal/modules/posts/dto.go', highlight: s === 2 }] : []),
+    ...(s >= 1 ? [{ name: 'service.go', depth: 4, lang: 'go', tabId: 'service.go', path: 'internal/modules/posts/service.go' }] : []),
+    ...(s >= 1 ? [{ name: 'controller.go', depth: 4, lang: 'go', tabId: 'controller.go', path: 'internal/modules/posts/controller.go' }] : []),
     { name: 'routes/', isFolder: true, depth: 2, path: 'internal/routes' },
-    { name: 'routes.go', depth: 3, lang: 'go', tabId: 'routes.go', path: 'internal/routes/routes.go', highlight: s === 1 },
-    { name: 'services/', isFolder: true, depth: 2, path: 'internal/services' },
-    { name: 'auth_service.go', depth: 3, lang: 'go', path: 'internal/services/auth_service.go' },
-    { name: 'user_service.go', depth: 3, lang: 'go', path: 'internal/services/user_service.go' },
-    ...(s >= 1 ? [{ name: 'post_service.go', depth: 3, lang: 'go', tabId: 'post_service.go', path: 'internal/services/post_service.go', highlight: s === 1 }] : []),
-    { name: 'tests/', isFolder: true, depth: 2, path: 'internal/tests' },
+    { name: 'routes.go', depth: 3, lang: 'go', tabId: 'routes.go', path: 'internal/routes/routes.go' },
+    { name: 'migrations/', isFolder: true, depth: 1, path: 'migrations' },
+    ...(s >= 3 ? [{ name: '20260610_create_posts_table.sql', depth: 2, lang: 'sql', tabId: 'migration.sql', path: 'migrations/20260610_create_posts_table.sql', highlight: s === 3 }] : []),
     { name: 'infra/', isFolder: true, depth: 1, path: 'infra' },
-    { name: 'docker-compose.yml', depth: 2, lang: 'yaml', path: 'infra/docker-compose.yml' },
+    { name: 'docker-compose.yml', depth: 1, lang: 'yaml', path: 'docker-compose.yml' },
     { name: 'atlas.hcl', depth: 1, lang: 'hcl', path: 'atlas.hcl' },
     { name: 'grove.toml', depth: 1, lang: 'toml', path: 'grove.toml' },
     { name: 'go.mod', depth: 1, lang: 'go', path: 'go.mod' },
@@ -1070,11 +935,11 @@ const openTabs = computed(() => {
     { id: 'app.go', label: 'app.go', lang: 'go' },
   ]
   if (s >= 1) {
-    tabs.push({ id: 'routes.go', label: 'routes.go', lang: 'go' })
-    tabs.push({ id: 'post.go', label: 'post.go', lang: 'go' })
-    tabs.push({ id: 'post-dto.go', label: 'post-dto.go', lang: 'go' })
-    tabs.push({ id: 'post_service.go', label: 'post_service.go', lang: 'go' })
-    tabs.push({ id: 'post-controller.go', label: 'post-controller.go', lang: 'go' })
+    tabs.push({ id: 'register.go', label: 'register.go', lang: 'go' })
+    tabs.push({ id: 'model.go', label: 'model.go', lang: 'go' })
+    tabs.push({ id: 'dto.go', label: 'dto.go', lang: 'go' })
+    tabs.push({ id: 'service.go', label: 'service.go', lang: 'go' })
+    tabs.push({ id: 'controller.go', label: 'controller.go', lang: 'go' })
   }
   if (s >= 3) {
     tabs.push({ id: 'migration.sql', label: '...sql', lang: 'sql' })
@@ -1133,8 +998,8 @@ function toggleTerminal() {
 watch(currentStep, (newStep) => {
   httpResponse.value = null // clear sandbox response
   if (newStep === 0) { activeEditorTab.value = 'main.go'; lastEditorTab.value = 'main.go' }
-  else if (newStep === 1) { activeEditorTab.value = 'routes.go'; lastEditorTab.value = 'routes.go' }
-  else if (newStep === 2) { activeEditorTab.value = 'post.go'; lastEditorTab.value = 'post.go' }
+  else if (newStep === 1) { activeEditorTab.value = 'register.go'; lastEditorTab.value = 'register.go' }
+  else if (newStep === 2) { activeEditorTab.value = 'model.go'; lastEditorTab.value = 'model.go' }
   else if (newStep === 3) { activeEditorTab.value = 'migration.sql'; lastEditorTab.value = 'migration.sql' }
   else if (newStep === 4) { activeEditorTab.value = 'terminal'; }
   else if (newStep === 5) { activeEditorTab.value = 'main.go'; lastEditorTab.value = 'main.go' }
@@ -1182,7 +1047,7 @@ function runCommand() {
     push('dim',  `  ────────────────────────────────────`)
     push('log',  `  <b>Project</b>    blog-api`)
     push('log',  `  <b>Module</b>     blog-api`)
-    push('dim',  `  Template   caiolandgraf/grove-base`)
+    push('dim',  `  Template   caiolandgraf/go-project-base`)
     push('dim',  `  ────────────────────────────────────`)
     push('ok',   `  <span class="t-green">✓</span> Downloading template     <span class="t-dim">425 KB</span>`)
     push('ok',   `  <span class="t-green">✓</span> Extracting files          <span class="t-dim">42 files</span>`)
@@ -1193,16 +1058,16 @@ function runCommand() {
   } else if (step === 1) {
     push('cmd',  `<span class="t-prompt">❯</span> grove make:resource Post`)
     push('dim',  `  Creating resource <b>Post</b>...`)
-    push('ok',   `  <span class="t-badge">CREATED</span> Model       → <span class="t-dim">internal/models/post.go</span>`)
-    push('ok',   `  <span class="t-badge">CREATED</span> DTO         → <span class="t-dim">internal/dto/post-dto.go</span>`)
-    push('ok',   `  <span class="t-badge">CREATED</span> Service     → <span class="t-dim">internal/services/post_service.go</span>`)
-    push('ok',   `  <span class="t-badge">CREATED</span> Controller  → <span class="t-dim">internal/controllers/post-controller.go</span>`)
-    push('ok',   `  <span class="t-badge">WIRED </span> Routes      → <span class="t-dim">internal/routes/routes.go</span>`)
+    push('ok',   `  <span class="t-badge">CREATED</span> Model       → <span class="t-dim">internal/modules/posts/model.go</span>`)
+    push('ok',   `  <span class="t-badge">CREATED</span> DTO         → <span class="t-dim">internal/modules/posts/dto.go</span>`)
+    push('ok',   `  <span class="t-badge">CREATED</span> Service     → <span class="t-dim">internal/modules/posts/service.go</span>`)
+    push('ok',   `  <span class="t-badge">CREATED</span> Controller  → <span class="t-dim">internal/modules/posts/controller.go</span>`)
+    push('ok',   `  <span class="t-badge">WIRED </span> Module      → <span class="t-dim">internal/modules/register.go</span>`)
   } else if (step === 2) {
     push('cmd',  `<span class="t-dim"># Editing model & DTO stubs...</span>`)
     push('ok',   `  <span class="t-green">✓</span> Added Title, Content, Published fields to Post GORM Model`)
     push('ok',   `  <span class="t-green">✓</span> Set up validation rules in CreatePostRequest DTO`)
-    activeEditorTab.value = 'post.go'; lastEditorTab.value = 'post.go'
+    activeEditorTab.value = 'model.go'; lastEditorTab.value = 'model.go'
   } else if (step === 3) {
     push('cmd',  `<span class="t-prompt">❯</span> grove make:migration create_posts_table`)
     push('log',  `  Running Atlas schema diff...`)

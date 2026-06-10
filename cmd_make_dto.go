@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -11,22 +12,18 @@ var makeDtoCmd = &cobra.Command{
 	Short: "Scaffold a new DTO request/response file",
 	Long: bold(
 		"make:dto",
-	) + ` scaffolds a new DTO request/response file in ` + colorCyan + `internal/dto/` + colorReset + `.
-
-The entity name is ` + colorBold + `automatically singularized` + colorReset + ` before generating files,
-so ` + colorCyan + `Posts` + colorReset + ` and ` + colorCyan + `Post` + colorReset + ` both produce the same ` + colorCyan + `post-dto.go` + colorReset + `.
+	) + ` scaffolds DTO types in ` + colorCyan + `internal/modules/<domain>/dto.go` + colorReset + `.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:dto Post
-  grove make:dto Posts           # same as Post (singularized)
-  grove make:dto BlogPost
-  grove make:dto order_items`,
+  grove make:dto BlogPost`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeDto,
 }
 
 func runMakeDto(_ *cobra.Command, args []string) error {
 	name := toPascalCase(toSingular(args[0]))
+	modDir := moduleDir(name)
 
 	fmt.Println()
 	fmt.Printf(
@@ -47,24 +44,13 @@ func runMakeDto(_ *cobra.Command, args []string) error {
 		colorGray, colorReset,
 		colorCyan+"Create"+name+"Request"+colorReset,
 		colorCyan+"Update"+name+"Request"+colorReset,
-		colorCyan+"internal/dto/"+toKebabCase(name)+"-dto.go"+colorReset,
-	)
-	fmt.Printf(
-		"    %s2.%s Add response fields to %s as needed\n",
-		colorGray, colorReset,
-		colorCyan+name+"Response"+colorReset,
+		colorCyan+filepath.Join(modDir, "dto.go")+colorReset,
 	)
 	fmt.Println()
 
 	return nil
 }
 
-// ──────────────────────────────────────────────
-// make:request — backward-compat alias
-// ──────────────────────────────────────────────
-
-// makeRequestCmd is a hidden alias kept for backward compatibility.
-// Prefer make:dto for new usage.
 var makeRequestCmd = &cobra.Command{
 	Use:    "make:request <Name>",
 	Short:  "Scaffold a new DTO request/response file",

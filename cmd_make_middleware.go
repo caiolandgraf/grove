@@ -11,7 +11,7 @@ var makeMiddlewareCmd = &cobra.Command{
 	Short: "Scaffold a new HTTP middleware",
 	Long: bold(
 		"make:middleware",
-	) + ` scaffolds a new HTTP middleware in ` + colorCyan + `internal/middleware/` + colorReset + `.
+	) + ` scaffolds a new HTTP middleware in ` + colorCyan + `internal/app/middleware/` + colorReset + `.
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:middleware Auth
@@ -42,7 +42,7 @@ func runMakeMiddleware(_ *cobra.Command, args []string) error {
 	fmt.Printf(
 		"    %s1.%s Implement your logic in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/middleware/"+kebab+"-middleware.go"+colorReset,
+		colorCyan+"internal/app/middleware/"+kebab+"-middleware.go"+colorReset,
 	)
 	fmt.Printf(
 		"    %s2.%s Register it in your server setup, e.g.:\n",

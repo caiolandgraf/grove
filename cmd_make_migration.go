@@ -20,7 +20,7 @@ var makeMigrationCmd = &cobra.Command{
 	) + ` generates a new SQL migration file by diffing your GORM
 	models against the current database schema using Atlas.
 
-	` + colorYellow + `Important:` + colorReset + ` always edit your model in ` + colorCyan + `internal/models/` + colorReset + ` first,
+	` + colorYellow + `Important:` + colorReset + ` always edit your model in ` + colorCyan + `internal/modules/<domain>/model.go` + colorReset + ` first,
 	then run this command — Atlas will produce the exact SQL diff between your
 	updated struct and the current database schema.
 

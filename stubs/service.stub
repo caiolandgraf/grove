@@ -1,26 +1,19 @@
-package services
+package {{.Package}}
 
-import (
-	"context"
-	"{{.Module}}/internal/models"
-)
+import "gorm.io/gorm"
 
-// {{.Name}}Repository define os métodos de persistência necessários pelo serviço.
-// Permite mockar a camada de dados nos testes.
-type {{.Name}}Repository interface {
-	Create(entity *models.{{.Name}}) error
-	Update(entity *models.{{.Name}}) error
-	Delete(id any) error
-	Find(id any) (*models.{{.Name}}, error)
-	Paginate(page, perPage int) ([]models.{{.Name}}, int64, error)
+type Service interface {
+	// TODO: add business methods (Create{{.Name}}, Get{{.Name}}ByID, etc.)
 }
 
-type {{.Name}}Service struct {
-	repo {{.Name}}Repository
+type service struct {
+	repo *Repo
 }
 
-func New{{.Name}}Service(repo {{.Name}}Repository) *{{.Name}}Service {
-	return &{{.Name}}Service{repo: repo}
+func NewService(repo *Repo) Service {
+	return &service{repo: repo}
 }
 
-// TODO: Adicionar métodos de negócio aqui (ex: Create{{.Name}}, Get{{.Name}}, etc.)
+func WireService(db *gorm.DB) Service {
+	return NewService({{.PluralName}}(db))
+}

@@ -1,24 +1,32 @@
-package controllers
+package {{.Package}}
 
 import (
 	"github.com/alexedwards/scs/v2"
-	"{{.Module}}/internal/services"
+	"{{.Module}}/internal/app/router"
 	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
 )
 
-type {{.Name}}Controller struct {
-	session         *scs.SessionManager
-	{{.NameLower}}Service *services.{{.Name}}Service
+type Controller struct {
+	service Service
 }
 
-func New{{.Name}}Controller(
-	session *scs.SessionManager,
-	{{.NameLower}}Service *services.{{.Name}}Service,
-) *{{.Name}}Controller {
-	return &{{.Name}}Controller{
-		session:         session,
-		{{.NameLower}}Service: {{.NameLower}}Service,
-	}
+func NewController(service Service) *Controller {
+	return &Controller{service: service}
 }
 
-// TODO: Adicionar os handlers HTTP delegando a lógica para ctl.{{.NameLower}}Service
+func Wire(db *gorm.DB) *Controller {
+	return NewController(WireService(db))
+}
+
+func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
+	group := fuego.Group(api, "/{{.RoutePrefix}}")
+
+	router.Get(group, "/", ctrl.List{{.PluralName}}, List{{.PluralName}}Doc, session)
+	router.Post(group, "/", ctrl.Create{{.Name}}, Create{{.Name}}Doc, session)
+	router.Get(group, "/{{.PathParam}}", ctrl.Get{{.Name}}, Get{{.Name}}Doc, session)
+	router.Put(group, "/{{.PathParam}}", ctrl.Update{{.Name}}, Update{{.Name}}Doc, session)
+	router.Delete(group, "/{{.PathParam}}", ctrl.Delete{{.Name}}, Delete{{.Name}}Doc, session)
+}
+
+// TODO: implement HTTP handlers delegating to ctrl.service

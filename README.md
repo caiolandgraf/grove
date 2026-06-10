@@ -14,7 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Release](https://img.shields.io/badge/release-v2.1.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.1.0)
+[![Release](https://img.shields.io/badge/release-v2.2.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.2.0)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
@@ -87,20 +87,20 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 
 | Command | Description |
 |---|---|
-| `grove make:model <Name>` | Scaffold a GORM model in `internal/models/` |
-| `grove make:model <Name> -c` | Scaffold model + controller |
+| `grove make:model <Name>` | Scaffold a GORM model in `internal/modules/<domain>/model.go` |
+| `grove make:model <Name> -c` | Scaffold model + controller + OpenAPI docs |
 | `grove make:model <Name> -d` | Scaffold model + DTO |
-| `grove make:model <Name> -cd` | Scaffold model + controller + DTO |
-| `grove make:model <Name> -r` | Full resource — shorthand for `-cd` |
-| `grove make:controller <Name>` | Scaffold a fuego controller in `internal/controllers/` (struct-based by default; use `--no-auth` for legacy function-based stub) |
-| `grove make:service <Name>` | Scaffold a Go service struct and companion repository interface in `internal/services/` |
+| `grove make:model <Name> -cd` | Scaffold model + controller + DTO + docs |
+| `grove make:model <Name> -r` | Full resource — service, controller, DTO, docs + module registration |
+| `grove make:controller <Name>` | Scaffold a module controller in `internal/modules/<domain>/` |
+| `grove make:service <Name>` | Scaffold a service in `internal/modules/<domain>/service.go` |
 | `grove make:seeder <Name>` | Scaffold a database seeder in `internal/database/seeders/` |
 | `grove make:seed` | Scaffold a seed runner entrypoint in `cmd/seed/main.go` (used by `grove db:seed`) |
-| `grove make:dto <Name>` | Scaffold DTO request/response files in `internal/dto/` |
-| `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/middleware/` |
+| `grove make:dto <Name>` | Scaffold DTO types in `internal/modules/<domain>/dto.go` |
+| `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/app/middleware/` |
 | `grove make:migration <name>` | Generate a SQL migration via Atlas diff (after editing your model) |
 | `grove db:seed` | Run database seeders via `go run ./cmd/seed` |
-| `grove make:resource <Name>` | Scaffold model, service, controller, and DTO in one shot, and automatically wire routes in `internal/routes/routes.go` |
+| `grove make:resource <Name>` | Scaffold a full domain module and register it in `internal/modules/register.go` |
 | `grove make:relations` | Infer and add GORM relationships from foreign keys |
 
 > **Name singularization:** all generator commands accept plural or mixed-case names and convert them automatically. `Books`, `books`, and `Book` all produce the same `Book` model and `books` table.
@@ -113,7 +113,7 @@ Infers model relationships from foreign key fields (for example, `UserID`) and a
 
 #### Seeders (`make:seeder`, `make:seed`, `db:seed`)
 
-Grove supports a simple, explicit seeding workflow compatible with `grove-base`.
+Grove supports a simple, explicit seeding workflow compatible with `go-project-base`.
 
 - `grove make:seeder <Name>` scaffolds a new seeder file in `internal/database/seeders/` following the interface:
 
@@ -152,7 +152,7 @@ Use `--with-belongs-to` to also generate the **belongs-to** side on the source m
 
 | Flag | Description |
 |---|---|
-| `--path` | Models directory (default: `internal/models`) |
+| `--path` | Modules directory (default: `internal/modules`) |
 | `--dry-run` | Preview inferred relations without writing files |
 | `--verbose` | Print detailed relation inference logs |
 | `--with-belongs-to` | Also generate belongs-to fields on source models |
@@ -265,61 +265,63 @@ grove completion fish > ~/.config/fish/completions/grove.fish
 ```
 my-api/
 ├── cmd/
-│   └── api/
-│       └── main.go              # Entry point
+│   ├── api/main.go              # Application entrypoint
+│   ├── atlas/main.go            # Atlas GORM schema loader
+│   └── scalar/scalar.go         # Scalar API docs UI
 ├── internal/
-│   ├── app/                     # Shared singletons (DB, Redis, Session, Metrics)
-│   │   ├── config/              # Infrastructure initializers (DB, Redis, OTel, etc.)
-│   │   └── middleware/          # HTTP middlewares (CORS, session, observability)
-│   ├── controllers/             # fuego route handlers
-│   ├── database/                # Generic GORM repository
-│   ├── dto/                     # Request and response types
-│   ├── models/                  # GORM models
-│   ├── routes/                  # Route registration
-│   ├── services/                # Business logic services
+│   ├── app/                     # Shared infrastructure (config, DB, helpers, middleware, router, types)
+│   │   ├── config/              # PostgreSQL, Redis, OTel, slog, metrics, session
+│   │   ├── database/            # Generic Repository[T] + Atlas model registry
+│   │   ├── helpers/             # JSON utilities, request validation
+│   │   ├── middleware/          # CORS, session, observability
+│   │   ├── router/              # Declarative OpenAPI route documentation
+│   │   └── types/               # Shared HTTP response types
+│   ├── modules/                 # Domain modules (model, dto, service, controller, docs)
+│   │   ├── auth/
+│   │   ├── users/
+│   │   ├── register.go          # Module registry — add new domains here
+│   │   └── module.go            # Module interface + Boot
+│   ├── routes/                  # Global routes + module mounting
 │   └── tests/                   # gest test files
-│       └── user_test.go         # Example test (generated by grove make:test)
 ├── migrations/                  # Atlas SQL migrations
-├── infra/                       # Observability stack config (Prometheus, Grafana, Loki, Jaeger)
-│   └── compose.yml              # Docker compose stack
-├── .env.example                 # Committed environment template
-├── atlas.hcl                    # Atlas configuration
-└── grove.toml                   # Grove dev server configuration
+├── infra/                       # Prometheus, Grafana, Loki, Jaeger, Promtail configs
+├── logs/                        # App log files (tailed by Promtail)
+├── docker-compose.yml           # Full infrastructure stack
+├── atlas.hcl                    # Atlas configuration (program mode via cmd/atlas)
+├── .env.example
+└── grove.toml                   # Optional Grove dev server configuration
 ```
 
-The `internal/` boundary is intentional — it prevents external packages from importing your application internals, keeping the codebase clean as it grows.
+Each domain under `internal/modules/` is self-contained: **model + repo**, **dto**, **service**, **controller**, and **docs**. Modules wire themselves via `Wire` and register HTTP routes via `Mount`. Add new domains in `internal/modules/register.go`. Models auto-register for Atlas via `init()` in each module's `model.go`.
 
 | Directory | Purpose |
 |---|---|
-| `cmd/api/` | Application entry point — wires singletons, routes and starts the server |
-| `internal/app/` | Shared singletons: DB, Redis, session store, metrics — initialized once at startup |
-| `internal/app/config/` | Infrastructure initializers for DB, Redis, OpenTelemetry and other external services |
-| `internal/app/middleware/` | HTTP middlewares: CORS, session, observability, auth, etc. |
-| `internal/controllers/` | fuego route handlers — one file per resource, OpenAPI inferred automatically |
-| `internal/database/` | Generic GORM repository (`Repository[T]`) used by all models |
-| `internal/dto/` | Request and response structs — decoupled from GORM models |
-| `internal/models/` | GORM models with typed repository accessors |
-| `internal/routes/` | Route registration — fuego typed routes wired to controllers |
-| `internal/services/` | Business logic service layer — isolates business calculations and data manipulations |
-| `internal/tests/` | gest v2 test files — standard `*_test.go` files, auto-created by `grove make:test` |
+| `cmd/api/` | Application entry point — wires infra, routes and starts the server |
+| `cmd/atlas/` | Loads all registered GORM models for Atlas migrations |
+| `internal/app/` | Shared infrastructure used by every module |
+| `internal/app/database/` | Generic `Repository[T]` and Atlas migration registry |
+| `internal/app/router/` | Declarative OpenAPI docs per endpoint (`router.Doc`) |
+| `internal/modules/` | Self-contained domain packages (auth, users, your resources) |
+| `internal/routes/` | Global middleware, health checks, mounts all modules |
+| `internal/tests/` | gest v2 test files — created by `grove make:test` |
 | `migrations/` | Versioned Atlas SQL migration files + `atlas.sum` |
-| `infra/` | Observability stack configuration: Prometheus, Grafana, Loki, Jaeger |
-| `infra/compose.yml` | Spins up the full observability stack locally with a single command |
-| `grove.toml` | Optional Grove configuration — `[dev]` section for `grove dev` |
+| `infra/` | Observability stack configuration |
+| `docker-compose.yml` | PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana |
+| `grove.toml` | Optional `[dev]` section for `grove dev` |
 
 ---
 
 ## Typical Workflow
 
 ```bash
-# 1. Scaffold a full resource (model + controller + DTO)
+# 1. Scaffold a full domain module
 grove make:resource Post
 
 # 2. Add your fields to the model
-#    edit internal/models/post.go → add Title, Body, etc.
+#    edit internal/modules/posts/model.go → add Title, Body, etc.
 
 # 3. Add request/response fields to the DTO
-#    edit internal/dto/post-dto.go
+#    edit internal/modules/posts/dto.go
 
 # 4. Generate the migration — Atlas diffs your model against the DB
 grove make:migration create_posts_table
@@ -327,22 +329,14 @@ grove make:migration create_posts_table
 # 5. Apply the migration
 grove migrate
 
-# 6. Register routes in internal/routes/routes.go (example)
-#    api := fuego.Group(s, "/api/v1")
-#    posts := fuego.Group(api, "/posts")
-#    postsRepo := models.Posts()
-#    postsService := services.NewPostService(postsRepo)
-#    postsController := controllers.NewPostController(app.Session, postsService)
-#    fuego.Post(posts, "/", postsController.Create)
+# 6. Module is registered automatically in internal/modules/register.go
+#    Routes are mounted via posts.Wire(db).Mount(api, session)
 
 # 7. Write tests for your new resource
 grove make:test Post
 
 # 8. Run the test suite
 grove test -c
-
-# or with plain go test
-go test ./internal/tests/...
 ```
 
 > **Updating a model later?** Add the new fields to your struct, then run `grove make:migration add_<field>_to_posts` — Atlas will generate an `ALTER TABLE` migration with exactly the diff between the current DB schema and your updated model.
