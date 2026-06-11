@@ -1,3 +1,5 @@
+import { projectStructureAscii } from './projectStructure.js'
+
 export const sections = [
   // ─────────────────────────────────────────────
   // GETTING STARTED
@@ -1534,80 +1536,43 @@ func TestPost(t *testing.T) {
             text: 'Every Grove project follows the <strong>go-project-base</strong> modular MSC layout. Each domain is a self-contained module under <code>internal/modules/</code>; shared infrastructure lives under <code>internal/app/</code>.'
           },
           {
+            type: 'code',
+            lang: 'text',
+            label: 'project layout',
+            code: projectStructureAscii
+          },
+          {
             type: 'folder-structure'
           },
           {
             type: 'paragraph',
-            text: 'The <code>internal/</code> package boundary is intentional — it prevents external packages from importing your application internals, keeping the codebase clean as it grows.'
+            text: 'Request flow: <code>Routes → Middlewares → Module (Controller → Service → Repository) → Database</code>. The <code>internal/</code> package boundary prevents external packages from importing your application internals.'
           },
           {
             type: 'table',
             head: ['Directory', 'Purpose'],
             rows: [
-              [
-                '<code>cmd/api/</code>',
-                'Application entry point — wires infrastructure, routes and starts the server'
-              ],
-              [
-                '<code>cmd/atlas/</code>',
-                'Atlas GORM schema loader — loads all registered models for migrations'
-              ],
-              [
-                '<code>internal/app/</code>',
-                'Shared infrastructure used by every module'
-              ],
-              [
-                '<code>internal/app/config/</code>',
-                'Infrastructure initializers for DB, Redis, OpenTelemetry and other external services'
-              ],
-              [
-                '<code>internal/app/database/</code>',
-                'Generic GORM repository (<code>Repository[T]</code>) and Atlas model registry'
-              ],
-              [
-                '<code>internal/app/middleware/</code>',
-                'HTTP middlewares: CORS, session, observability, auth, etc.'
-              ],
-              [
-                '<code>internal/app/router/</code>',
-                'Declarative OpenAPI route documentation per endpoint'
-              ],
-              [
-                '<code>internal/modules/</code>',
-                'Self-contained domain packages — model, dto, service, controller, docs per domain'
-              ],
-              [
-                '<code>internal/modules/register.go</code>',
-                'Module registry — new domains are registered here by <code>grove make:resource</code>'
-              ],
-              [
-                '<code>internal/routes/</code>',
-                'Global middleware, health checks, and module mounting via <code>modules.Mount</code>'
-              ],
-              [
-                '<code>internal/tests/</code>',
-                'gest v2 test files — created by <code>grove make:test</code>'
-              ],
-              [
-                '<code>migrations/</code>',
-                'Versioned Atlas SQL migration files + <code>atlas.sum</code>'
-              ],
-              [
-                '<code>infra/</code>',
-                'Observability stack configuration: Prometheus, Grafana, Loki, Jaeger'
-              ],
-              [
-                '<code>docker-compose.yml</code>',
-                'PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana — at project root'
-              ],
-              [
-                '<code>atlas.hcl</code>',
-                'Atlas configuration — program mode via <code>cmd/atlas</code>'
-              ],
-              [
-                '<code>grove.toml</code>',
-                'Optional Grove configuration — <code>[dev]</code> section for <code>grove dev</code>'
-              ]
+              ['<code>cmd/api/</code>', 'Application entrypoint — boots config, connects infra, starts Fuego'],
+              ['<code>cmd/atlas/</code>', 'Atlas GORM schema loader (program mode via <code>atlas.hcl</code>)'],
+              ['<code>cmd/scalar/</code>', 'Scalar OpenAPI documentation UI handler'],
+              ['<code>internal/app/config/</code>', 'DB, Redis, OTel, slog, metrics, and session initializers'],
+              ['<code>internal/app/database/</code>', 'Generic <code>Repository[T]</code> and Atlas model registry'],
+              ['<code>internal/app/helpers/</code>', 'JSON utilities (<code>jsonutils/</code>) and request validation (<code>validator/</code>)'],
+              ['<code>internal/app/middleware/</code>', 'CORS, session, and observability middlewares'],
+              ['<code>internal/app/types/</code>', 'Shared HTTP types — errors, messages, health responses'],
+              ['<code>internal/app/router/</code>', 'Declarative OpenAPI docs per endpoint (<code>router.Doc</code>)'],
+              ['<code>internal/modules/</code>', 'Self-contained domains — model, dto, service, controller, docs'],
+              ['<code>internal/modules/module.go</code>', 'Module interface, Boot struct, and Factory type'],
+              ['<code>internal/modules/register.go</code>', 'Module registry — <code>grove make:resource</code> adds new domains here'],
+              ['<code>internal/routes/</code>', 'Global middleware, health checks (<code>health.go</code>), module mounting'],
+              ['<code>infra/</code>', 'Prometheus, Grafana, Loki, Jaeger, and Promtail configuration'],
+              ['<code>logs/</code>', 'Structured JSON log files tailed by Promtail → Loki'],
+              ['<code>migrations/</code>', 'Versioned Atlas SQL files + <code>atlas.sum</code>'],
+              ['<code>doc/openapi.json</code>', 'Generated OpenAPI 3 spec served at <code>/swagger</code>'],
+              ['<code>docker-compose.yml</code>', 'PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana stack'],
+              ['<code>atlas.hcl</code>', 'Atlas environments — loads schema via <code>go run ./cmd/atlas</code>'],
+              ['<code>Makefile</code>', 'Dev commands: install, run, dev, migrate-up, db-reset'],
+              ['<code>grove.toml</code>', 'Optional — Grove CLI hot-reload config for <code>grove dev</code>']
             ]
           }
         ]

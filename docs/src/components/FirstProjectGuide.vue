@@ -420,20 +420,21 @@ import (
 	"syscall"
 
 	"blog-api/cmd/scalar"
-	"blog-api/internal/app"
 	"blog-api/internal/app/config"
 	"blog-api/internal/routes"
 	"github.com/go-fuego/fuego"
+	"github.com/gomodule/redigo/redis"
+	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 )
 
 func main() {
-	// Load .env and parse all environment variables into config.Env
-	config.Load()
+	if err := godotenv.Load(); err != nil {
+		panic(".env not found")
+	}
 
-	// Initialize structured logger (uses config.Env.LogLevel)
 	config.InitLogger()
 
-	// Initialize OpenTelemetry
 	ctx := context.Background()
 	otelShutdown, err := config.InitOtel(ctx)
 	if err != nil {
@@ -442,163 +443,72 @@ func main() {
 	}
 	defer func() { _ = otelShutdown(ctx) }()
 
-	// Boot application (DB, Redis, Session, Metrics)
-	if err := app.Boot(); err != nil {
-		slog.Error("Failed to boot application", "error", err)
+	metricsHandler, err := config.InitMetrics()
+	if err != nil {
+		slog.Error("Failed to initialize metrics", "error", err)
 		os.Exit(1)
 	}
-	defer app.Shutdown()
 
-	// Initialize server
+	db, err := config.InitDatabase()
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+
+	redisPool, err := config.InitRedis()
+	if err != nil {
+		slog.Error("Failed to connect to redis", "error", err)
+		os.Exit(1)
+	}
+
+	sessionManager := config.InitSessionManager(redisPool)
+	defer closeConnections(db, redisPool)
+
 	s := fuego.NewServer(
 		fuego.WithAddr("localhost:8080"),
 		fuego.WithEngineOptions(
 			fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
-				JSONFilePath: "./internal/app/docs/openapi.json",
-				SwaggerURL:   "/api-doc",
-				UIHandler:    scalar.NewUI,
+				UIHandler: scalar.NewUI,
 			}),
 		),
 	)
 
-	// Configure routes
-	routes.SetupRoutes(s)
+	routes.SetupRoutes(s, db, redisPool, sessionManager, metricsHandler)
 
 	slog.Info("Server starting", "addr", ":8080")
+	go handleShutdown(db, redisPool)
 
-	// Graceful shutdown
-	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
-		<-sigint
-		slog.Info("Shutting down server...")
-		app.Shutdown()
-		os.Exit(0)
-	}()
-
-	// Start server
 	if err := s.Run(); err != nil {
 		slog.Error("Failed to start server", "error", err)
 		os.Exit(1)
 	}
+}
+
+func closeConnections(db *gorm.DB, redisPool *redis.Pool) {
+	if sqlDB, err := db.DB(); err == nil {
+		_ = sqlDB.Close()
+	}
+	if redisPool != nil {
+		_ = redisPool.Close()
+	}
+}
+
+func handleShutdown(db *gorm.DB, redisPool *redis.Pool) {
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
+	<-sigint
+	slog.Info("Shutting down server...")
+	closeConnections(db, redisPool)
+	os.Exit(0)
 }`
     },
     'app.go': {
       lang: 'go',
       path: 'internal/app',
       label: 'app.go',
-      code: `package app
-
-import (
-	"log/slog"
-	"net/http"
-
-	"github.com/alexedwards/scs/v2"
-	"blog-api/internal/app/config"
-	"github.com/gomodule/redigo/redis"
-	"gorm.io/gorm"
-)
-
-// Global application dependencies.
-// Accessible from anywhere via app.DB, app.Redis, app.Session.
-var (
-	DB      *gorm.DB
-	Redis   *redis.Pool
-	Session *scs.SessionManager
-	Metrics http.Handler
-)
-
-// Boot initializes all infrastructure dependencies.
-// Call this once at application startup.
-func Boot() error {
-	slog.Info("Booting application...")
-
-	// Logger
-	config.InitLogger()
-
-	// Database
-	db, err := config.InitDatabase()
-	if err != nil {
-		return err
-	}
-	DB = db
-
-	// Redis
-	redisPool, err := config.InitRedis()
-	if err != nil {
-		return err
-	}
-	Redis = redisPool
-
-	// Session Manager
-	Session = config.InitSessionManager(redisPool)
-
-	// Metrics
-	if config.Env.MetricsEnabled {
-		metricsHandler, err := config.InitMetrics()
-		if err != nil {
-			return err
-		}
-		Metrics = metricsHandler
-	} else {
-		slog.Info("Prometheus metrics disabled")
-	}
-
-	slog.Info("Application booted successfully")
-	return nil
-}
-
-// Shutdown gracefully closes all connections.
-func Shutdown() {
-	slog.Info("Shutting down application...")
-
-	if DB != nil {
-		if sqlDB, err := DB.DB(); err == nil {
-			_ = sqlDB.Close()
-		}
-	}
-
-	if Redis != nil {
-		_ = Redis.Close()
-	}
-
-	slog.Info("All connections closed")
-}
-
-// HealthCheck returns the status of all infrastructure dependencies.
-func HealthCheck() map[string]string {
-	status := make(map[string]string)
-
-	// Database
-	if DB != nil {
-		if sqlDB, err := DB.DB(); err == nil {
-			if err := sqlDB.Ping(); err == nil {
-				status["database"] = "healthy"
-			} else {
-				status["database"] = "unhealthy"
-			}
-		}
-	} else {
-		status["database"] = "not initialized"
-	}
-
-	// Redis
-	if Redis != nil {
-		conn := Redis.Get()
-		defer func() {
-			_ = conn.Close()
-		}()
-		if _, err := conn.Do("PING"); err == nil {
-			status["redis"] = "healthy"
-		} else {
-			status["redis"] = "unhealthy"
-		}
-	} else {
-		status["redis"] = "not initialized"
-	}
-
-	return status
-}`
+      code: `// Package app groups shared infrastructure: config, database, helpers,
+// middleware, router, and types. Domain code lives in internal/modules.
+package app`
     },
     'routes.go': {
       lang: 'go',
@@ -894,35 +804,48 @@ const explorerTree = computed(() => {
     { name: 'blog-api/', isFolder: true, depth: 0, path: '' },
     { name: 'cmd/', isFolder: true, depth: 1, path: 'cmd' },
     { name: 'api/', isFolder: true, depth: 2, path: 'cmd/api' },
-    { name: 'main.go', depth: 3, lang: 'go', tabId: 'main.go', path: 'cmd/api/main.go', highlight: s === 0 },
+    { name: 'main.go', depth: 3, lang: 'go', tabId: 'main.go', path: 'cmd/api/main.go', highlight: s === 0 || s === 5 },
     { name: 'atlas/', isFolder: true, depth: 2, path: 'cmd/atlas' },
+    { name: 'main.go', depth: 3, lang: 'go', path: 'cmd/atlas/main.go' },
     { name: 'scalar/', isFolder: true, depth: 2, path: 'cmd/scalar' },
+    { name: 'scalar.go', depth: 3, lang: 'go', path: 'cmd/scalar/scalar.go' },
     { name: 'internal/', isFolder: true, depth: 1, path: 'internal' },
     { name: 'app/', isFolder: true, depth: 2, path: 'internal/app' },
-    { name: 'app.go', depth: 3, lang: 'go', tabId: 'app.go', path: 'internal/app/app.go', highlight: s === 0 },
     { name: 'config/', isFolder: true, depth: 3, path: 'internal/app/config' },
     { name: 'database/', isFolder: true, depth: 3, path: 'internal/app/database' },
+    { name: 'helpers/', isFolder: true, depth: 3, path: 'internal/app/helpers' },
     { name: 'middleware/', isFolder: true, depth: 3, path: 'internal/app/middleware' },
+    { name: 'types/', isFolder: true, depth: 3, path: 'internal/app/types' },
     { name: 'router/', isFolder: true, depth: 3, path: 'internal/app/router' },
+    { name: 'app.go', depth: 3, lang: 'go', tabId: 'app.go', path: 'internal/app/app.go' },
     { name: 'modules/', isFolder: true, depth: 2, path: 'internal/modules' },
-    { name: 'register.go', depth: 3, lang: 'go', tabId: 'register.go', path: 'internal/modules/register.go', highlight: s === 1 },
     { name: 'auth/', isFolder: true, depth: 3, path: 'internal/modules/auth' },
     { name: 'users/', isFolder: true, depth: 3, path: 'internal/modules/users' },
+    { name: 'module.go', depth: 3, lang: 'go', path: 'internal/modules/module.go' },
+    { name: 'register.go', depth: 3, lang: 'go', tabId: 'register.go', path: 'internal/modules/register.go', highlight: s === 1 },
     { name: 'posts/', isFolder: true, depth: 3, path: 'internal/modules/posts' },
     ...(s >= 1 ? [{ name: 'model.go', depth: 4, lang: 'go', tabId: 'model.go', path: 'internal/modules/posts/model.go', highlight: s === 1 || s === 2 }] : []),
     ...(s >= 1 ? [{ name: 'dto.go', depth: 4, lang: 'go', tabId: 'dto.go', path: 'internal/modules/posts/dto.go', highlight: s === 2 }] : []),
     ...(s >= 1 ? [{ name: 'service.go', depth: 4, lang: 'go', tabId: 'service.go', path: 'internal/modules/posts/service.go' }] : []),
     ...(s >= 1 ? [{ name: 'controller.go', depth: 4, lang: 'go', tabId: 'controller.go', path: 'internal/modules/posts/controller.go' }] : []),
+    ...(s >= 1 ? [{ name: 'docs.go', depth: 4, lang: 'go', path: 'internal/modules/posts/docs.go' }] : []),
     { name: 'routes/', isFolder: true, depth: 2, path: 'internal/routes' },
+    { name: 'health.go', depth: 3, lang: 'go', path: 'internal/routes/health.go' },
     { name: 'routes.go', depth: 3, lang: 'go', tabId: 'routes.go', path: 'internal/routes/routes.go' },
+    { name: 'infra/', isFolder: true, depth: 1, path: 'infra' },
+    { name: 'grafana/', isFolder: true, depth: 2, path: 'infra/grafana' },
+    { name: 'logs/', isFolder: true, depth: 1, path: 'logs' },
     { name: 'migrations/', isFolder: true, depth: 1, path: 'migrations' },
     ...(s >= 3 ? [{ name: '20260610_create_posts_table.sql', depth: 2, lang: 'sql', tabId: 'migration.sql', path: 'migrations/20260610_create_posts_table.sql', highlight: s === 3 }] : []),
-    { name: 'infra/', isFolder: true, depth: 1, path: 'infra' },
-    { name: 'docker-compose.yml', depth: 1, lang: 'yaml', path: 'docker-compose.yml' },
+    { name: 'doc/', isFolder: true, depth: 1, path: 'doc' },
+    { name: 'openapi.json', depth: 2, lang: 'json', path: 'doc/openapi.json' },
+    { name: '.air.toml', depth: 1, lang: 'toml', path: '.air.toml' },
     { name: 'atlas.hcl', depth: 1, lang: 'hcl', path: 'atlas.hcl' },
-    { name: 'grove.toml', depth: 1, lang: 'toml', path: 'grove.toml' },
+    { name: 'docker-compose.yml', depth: 1, lang: 'yaml', path: 'docker-compose.yml' },
+    { name: 'Makefile', depth: 1, lang: 'makefile', path: 'Makefile' },
     { name: 'go.mod', depth: 1, lang: 'go', path: 'go.mod' },
     { name: '.env.example', depth: 1, lang: 'text', path: '.env.example' },
+    { name: 'grove.toml', depth: 1, lang: 'toml', path: 'grove.toml' },
   ]
   return items
 })
@@ -1062,6 +985,7 @@ function runCommand() {
     push('ok',   `  <span class="t-badge">CREATED</span> DTO         → <span class="t-dim">internal/modules/posts/dto.go</span>`)
     push('ok',   `  <span class="t-badge">CREATED</span> Service     → <span class="t-dim">internal/modules/posts/service.go</span>`)
     push('ok',   `  <span class="t-badge">CREATED</span> Controller  → <span class="t-dim">internal/modules/posts/controller.go</span>`)
+    push('ok',   `  <span class="t-badge">CREATED</span> Docs        → <span class="t-dim">internal/modules/posts/docs.go</span>`)
     push('ok',   `  <span class="t-badge">WIRED </span> Module      → <span class="t-dim">internal/modules/register.go</span>`)
   } else if (step === 2) {
     push('cmd',  `<span class="t-dim"># Editing model & DTO stubs...</span>`)

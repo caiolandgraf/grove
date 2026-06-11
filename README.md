@@ -265,48 +265,63 @@ grove completion fish > ~/.config/fish/completions/grove.fish
 ```
 my-api/
 ├── cmd/
-│   ├── api/main.go              # Application entrypoint
-│   ├── atlas/main.go            # Atlas GORM schema loader
-│   └── scalar/scalar.go         # Scalar API docs UI
+│   ├── api/
+│   │   └── main.go                # Application entrypoint
+│   ├── atlas/
+│   │   └── main.go                # Atlas GORM schema loader
+│   └── scalar/
+│       └── scalar.go              # Scalar API docs UI handler
 ├── internal/
-│   ├── app/                     # Shared infrastructure (config, DB, helpers, middleware, router, types)
-│   │   ├── config/              # PostgreSQL, Redis, OTel, slog, metrics, session
-│   │   ├── database/            # Generic Repository[T] + Atlas model registry
-│   │   ├── helpers/             # JSON utilities, request validation
-│   │   ├── middleware/          # CORS, session, observability
-│   │   ├── router/              # Declarative OpenAPI route documentation
-│   │   └── types/               # Shared HTTP response types
-│   ├── modules/                 # Domain modules (model, dto, service, controller, docs)
-│   │   ├── auth/
-│   │   ├── users/
-│   │   ├── register.go          # Module registry — add new domains here
-│   │   └── module.go            # Module interface + Boot
-│   ├── routes/                  # Global routes + module mounting
-│   └── tests/                   # gest test files
-├── migrations/                  # Atlas SQL migrations
-├── infra/                       # Prometheus, Grafana, Loki, Jaeger, Promtail configs
-├── logs/                        # App log files (tailed by Promtail)
-├── docker-compose.yml           # Full infrastructure stack
-├── atlas.hcl                    # Atlas configuration (program mode via cmd/atlas)
-├── .env.example
-└── grove.toml                   # Optional Grove dev server configuration
+│   ├── app/                       # Shared infrastructure
+│   │   ├── config/                # PostgreSQL, Redis, OTel, slog, metrics, session
+│   │   ├── database/              # Repository[T] + Atlas model registry
+│   │   ├── helpers/               # jsonutils, validator
+│   │   ├── middleware/            # CORS, session, observability
+│   │   ├── types/                 # Shared HTTP response types
+│   │   ├── router/                # Declarative OpenAPI route docs
+│   │   └── app.go                 # Package documentation
+│   ├── modules/
+│   │   ├── auth/                  # Auth domain (dto, service, controller, docs)
+│   │   ├── users/                 # Users domain (model, dto, service, controller, docs)
+│   │   ├── module.go              # Module interface + Boot
+│   │   └── register.go            # Module registry
+│   └── routes/
+│       ├── health.go              # Health check routes
+│       └── routes.go              # Global routes + module mounting
+├── infra/                         # Prometheus, Grafana, Loki, Jaeger configs
+├── logs/                          # App log files (Promtail → Loki)
+├── migrations/                    # Atlas SQL migrations
+├── doc/
+│   └── openapi.json               # Generated OpenAPI spec
+├── .air.toml                      # Air hot reload config
+├── atlas.hcl                      # Atlas migration config
+├── docker-compose.yml             # Full infrastructure stack
+├── Makefile                       # Dev commands
+└── go.mod                         # Go module definition
 ```
 
 Each domain under `internal/modules/` is self-contained: **model + repo**, **dto**, **service**, **controller**, and **docs**. Modules wire themselves via `Wire` and register HTTP routes via `Mount`. Add new domains in `internal/modules/register.go`. Models auto-register for Atlas via `init()` in each module's `model.go`.
 
 | Directory | Purpose |
 |---|---|
-| `cmd/api/` | Application entry point — wires infra, routes and starts the server |
+| `cmd/api/` | Application entrypoint — boots config, connects infra, starts the server |
 | `cmd/atlas/` | Loads all registered GORM models for Atlas migrations |
-| `internal/app/` | Shared infrastructure used by every module |
-| `internal/app/database/` | Generic `Repository[T]` and Atlas migration registry |
+| `cmd/scalar/` | Scalar OpenAPI documentation UI handler |
+| `internal/app/config/` | DB, Redis, OTel, slog, metrics, and session initializers |
+| `internal/app/database/` | Generic `Repository[T]` and Atlas model registry |
+| `internal/app/helpers/` | JSON utilities and request validation |
+| `internal/app/middleware/` | CORS, session, and observability middlewares |
+| `internal/app/types/` | Shared HTTP response types (errors, health, messages) |
 | `internal/app/router/` | Declarative OpenAPI docs per endpoint (`router.Doc`) |
 | `internal/modules/` | Self-contained domain packages (auth, users, your resources) |
+| `internal/modules/register.go` | Module registry — `grove make:resource` adds new domains here |
 | `internal/routes/` | Global middleware, health checks, mounts all modules |
-| `internal/tests/` | gest v2 test files — created by `grove make:test` |
-| `migrations/` | Versioned Atlas SQL migration files + `atlas.sum` |
 | `infra/` | Observability stack configuration |
+| `logs/` | Structured JSON log files tailed by Promtail |
+| `migrations/` | Versioned Atlas SQL migration files + `atlas.sum` |
 | `docker-compose.yml` | PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana |
+| `atlas.hcl` | Atlas configuration — program mode via `cmd/atlas` |
+| `Makefile` | Dev commands: install, run, dev, migrate-up |
 | `grove.toml` | Optional `[dev]` section for `grove dev` |
 
 ---
