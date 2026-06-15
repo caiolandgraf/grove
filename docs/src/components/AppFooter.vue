@@ -49,6 +49,18 @@
         <a href="https://vitejs.dev" target="_blank" rel="noopener">Vite</a>
       </span>
     </div>
+
+    <div class="footer-badge">
+      <a href="https://feitonobrasil.dev.br" aria-label="Made in Brazil" target="_blank" rel="noopener">
+        <img
+          src="https://selo.feitonobrasil.dev.br/en/colorido/1x.svg"
+          alt="Made in Brazil"
+          width="250"
+          height="120"
+          loading="lazy"
+        />
+      </a>
+    </div>
   </footer>
 </template>
 
@@ -155,6 +167,30 @@ const year = new Date().getFullYear()
   color: var(--red);
 }
 
+.footer-badge {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+  display: flex;
+  justify-content: center;
+}
+
+.footer-badge a {
+  display: inline-flex;
+  opacity: 0.9;
+  transition: opacity 0.15s;
+}
+
+.footer-badge a:hover {
+  opacity: 1;
+}
+
+.footer-badge img {
+  display: block;
+  height: auto;
+  max-width: min(250px, 100%);
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .footer-inner {
@@ -172,6 +208,10 @@ const year = new Date().getFullYear()
     flex-direction: column;
     align-items: flex-start;
     padding: 1rem 1.25rem;
+  }
+
+  .footer-badge {
+    padding: 1rem 1.25rem 1.5rem;
   }
 }
 </style>

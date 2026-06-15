@@ -513,3 +513,11 @@ See the full documentation at **[caiolandgraf.github.io/grove](https://caiolandg
 ## License
 
 MIT © [Caio Landgraf](https://github.com/caiolandgraf)
+
+---
+
+<p align="center">
+  <a href="https://feitonobrasil.dev.br" aria-label="Made in Brazil">
+    <img src="https://selo.feitonobrasil.dev.br/en/colorido/1x.svg" alt="Made in Brazil" width="250" height="120" loading="lazy" />
+  </a>
+</p>
