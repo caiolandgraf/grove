@@ -517,5 +517,5 @@ MIT © [Caio Landgraf](https://github.com/caiolandgraf)
 ---
 
 <p align="center">
-  <a href="https://feitonobrasil.dev.br"><img src="https://selo.feitonobrasil.dev.br/pt-br/colorido/1x.svg" alt="Feito no Brasil" height="56"></a>
+  <a href="https://feitonobrasil.dev.br"><img src="https://selo.feitonobrasil.dev.br/en/colorido/1x.svg" alt="Feito no Brasil" height="56"></a>
 </p>
