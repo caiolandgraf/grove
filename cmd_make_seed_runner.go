@@ -20,9 +20,9 @@ var makeSeedRunnerCmd = &cobra.Command{
 
 This is used by ` + colorGreen + `grove db:seed` + colorReset + ` to execute your project's seeders.
 
-The generated runner should initialize app globals and run:
+The generated runner loads config, connects to the database, and runs:
 
-  internal/database/seeders.Run(app.DB)
+  internal/app/database/seeders.Run(db)
 
 ` + colorGray + `Examples:` + colorReset + `
   grove make:seed
@@ -86,7 +86,7 @@ func runMakeSeedRunner(_ *cobra.Command, _ []string) error {
 	fmt.Printf(
 		"    %s1.%s Ensure you have seeders in %s\n",
 		colorGray, colorReset,
-		colorCyan+"internal/database/seeders/"+colorReset,
+		colorCyan+"internal/app/database/seeders/"+colorReset,
 	)
 	fmt.Printf(
 		"    %s2.%s Run %s to execute them\n",

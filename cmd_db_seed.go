@@ -25,9 +25,9 @@ By default, Grove runs:
   go run ./cmd/seed
 
 This expects your project to provide a seed entrypoint at ` + colorCyan + `cmd/seed/` + colorReset + ` (option 1).
-That runner should initialize app globals and call:
+That runner should load config, connect to the database, and call:
 
-  internal/database/seeders.Run(app.DB)
+  internal/app/database/seeders.Run(db)
 
 ` + colorGray + `Examples:` + colorReset + `
   grove db:seed

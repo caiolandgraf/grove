@@ -184,7 +184,7 @@ grove dev:air`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Downloads and scaffolds a complete Grove project from the official <a href="https://github.com/caiolandgraf/go-project-base" target="_blank">go-project-base</a> template repository on GitHub (v2.0.0 modular MSC architecture).'
+            text: 'Downloads and scaffolds a complete Grove project from the official <a href="https://github.com/caiolandgraf/grove-base" target="_blank">grove-base</a> template repository on GitHub (modular MSC architecture with rate limiting).'
           },
           {
             type: 'paragraph',
@@ -595,6 +595,7 @@ func Posts(db *gorm.DB) *Repo {
 
 import (
 	"github.com/alexedwards/scs/v2"
+	"your/module/internal/app/helpers/ratelimiter"
 	"your/module/internal/app/router"
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
@@ -602,14 +603,32 @@ import (
 
 type Controller struct {
 	service Service
+	readRL  *ratelimiter.Limiter
+	writeRL *ratelimiter.Limiter
 }
 
-func NewController(service Service) *Controller {
-	return &Controller{service: service}
+func NewController(service Service, settings ratelimiter.Settings) *Controller {
+	opts := []ratelimiter.Option{
+		ratelimiter.WithTrustedProxies(settings.TrustedProxies...),
+	}
+
+	return &Controller{
+		service: service,
+		readRL: ratelimiter.New(
+			settings.Read.Max,
+			settings.Read.Window,
+			opts...,
+		),
+		writeRL: ratelimiter.New(
+			settings.Write.Max,
+			settings.Write.Window,
+			opts...,
+		),
+	}
 }
 
-func Wire(db *gorm.DB) *Controller {
-	return NewController(WireService(db))
+func Wire(db *gorm.DB, settings ratelimiter.Settings) *Controller {
+	return NewController(WireService(db), settings)
 }
 
 func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
@@ -661,12 +680,17 @@ type Service interface {
 	// TODO: add business methods (CreatePost, GetPostByID, etc.)
 }
 
-type service struct {
-	repo *Repo
+// Store abstracts persistence for post operations (enables mocks in tests).
+type Store interface {
+	// TODO: add store methods matching your Repo
 }
 
-func NewService(repo *Repo) Service {
-	return &service{repo: repo}
+type service struct {
+	store Store
+}
+
+func NewService(store Store) Service {
+	return &service{store: store}
 }
 
 func WireService(db *gorm.DB) Service {
@@ -716,7 +740,7 @@ type PostResponse struct {
 }
 
 type PostsListResponse struct {
-	Items []PostResponse \`json:"items"\`
+	Posts []PostResponse \`json:"posts"\`
 	Total int            \`json:"total"\`
 }`
           }
@@ -776,7 +800,11 @@ func Auth(next http.Handler) http.Handler {
 	// ... health checks, metrics ...
 
 	api := fuego.Group(s, "/api/v1")
-	modules.Mount(api, modules.Boot{DB: db, Session: session})
+	modules.Mount(api, modules.Boot{
+		DB:        db,
+		Session:   session,
+		RateLimit: config.RateLimitSettings(),
+	})
 }`
           }
         ]
@@ -916,7 +944,7 @@ grove make:relations --model PaymentMethod --model Order`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a database seeder in <code>internal/database/seeders/</code>. Seeders implement a simple interface with <code>Name() string</code> and <code>Seed(db *gorm.DB) error</code>.'
+            text: 'Scaffolds a database seeder in <code>internal/app/database/seeders/</code>. Seeders implement a simple interface with <code>Name() string</code> and <code>Seed(db *gorm.DB) error</code>.'
           },
           {
             type: 'code',
@@ -930,13 +958,13 @@ grove make:relations --model PaymentMethod --model Order`
             rows: [
               [
                 '<code>--path</code>',
-                '<code>internal/database/seeders</code>',
+                '<code>internal/app/database/seeders</code>',
                 'Target seeders directory'
               ],
               [
                 '<code>--register</code>',
                 '<code>false</code>',
-                'Register the new seeder in <code>internal/database/seeders/seeder.go</code> (adds it to the seeders list) if the file exists'
+                'Register the new seeder in <code>internal/app/database/seeders/seeder.go</code> (adds it to the seeders list) if the file exists'
               ]
             ]
           },
@@ -961,7 +989,7 @@ grove make:seeder order_items`
         blocks: [
           {
             type: 'paragraph',
-            text: 'Scaffolds a dedicated seed runner entrypoint at <code>cmd/seed/main.go</code>. This runner initializes app globals and calls <code>internal/database/seeders.Run(app.DB)</code>.'
+            text: 'Scaffolds a dedicated seed runner entrypoint at <code>cmd/seed/main.go</code>. This runner loads config, connects to the database, and calls <code>internal/app/database/seeders.Run(db)</code>.'
           },
           {
             type: 'code',
@@ -1227,6 +1255,68 @@ grove make:resource order_items # → OrderItem model, order_items table`
             lang: 'bash',
             label: 'fish — persist',
             code: `grove completion fish > ~/.config/fish/completions/grove.fish`
+          }
+        ]
+      },
+      {
+        id: 'cmd-quality',
+        title: 'Quality commands',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Grove projects use the CLI for formatting, linting, testing, and building — no Makefile required. Run these from your project root (where <code>go.mod</code> lives).'
+          },
+          {
+            type: 'table',
+            head: ['Command', 'Description'],
+            rows: [
+              ['<code>grove prepare</code>', 'Full pre-commit pipeline: fmt → lint:fix → lint → test:unit → build:binaries'],
+              ['<code>grove check</code>', 'CI checks without modifying files: lint → test:unit → build:binaries'],
+              ['<code>grove fmt</code>', '<code>golangci-lint fmt</code> + optional <code>golines</code>'],
+              ['<code>grove lint</code>', '<code>golangci-lint run ./...</code>'],
+              ['<code>grove lint:fix</code>', '<code>golangci-lint run --fix ./...</code>'],
+              ['<code>grove test:unit</code>', '<code>go test -race -short ./...</code>'],
+              ['<code>grove test:all</code>', '<code>go test -race ./...</code> (includes integration tests)'],
+              ['<code>grove build:binaries</code>', 'Build <code>cmd/api</code> and <code>cmd/atlas</code> to <code>.grove/bin/</code>']
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: 'Set <code>GO</code>, <code>GOLANGCI_LINT</code>, or <code>GOLINES</code> to override the default tool binaries.'
+          }
+        ]
+      },
+      {
+        id: 'cmd-prepare',
+        title: 'grove prepare',
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Runs the full pre-commit quality pipeline from your project root: format code, auto-fix lint issues, verify lint, run unit tests, and build the <code>api</code> and <code>atlas</code> binaries.'
+          },
+          {
+            type: 'code',
+            lang: 'bash',
+            label: 'terminal',
+            code: `grove prepare`
+          },
+          {
+            type: 'table',
+            head: ['Step', 'Command'],
+            rows: [
+              ['Format', '<code>golangci-lint fmt ./...</code>'],
+              ['Line length', '<code>golines -w -m 120 .</code> (skipped when not installed)'],
+              ['Lint fix', '<code>golangci-lint run --fix ./...</code>'],
+              ['Lint', '<code>golangci-lint run ./...</code>'],
+              ['Test', '<code>go test -race -count=1 -short ./...</code>'],
+              ['Build', '<code>go build</code> → <code>.grove/bin/api</code> and <code>.grove/bin/atlas</code>']
+            ]
+          },
+          {
+            type: 'note',
+            kind: 'info',
+            text: 'Set <code>GO</code>, <code>GOLANGCI_LINT</code>, or <code>GOLINES</code> to override the default tool binaries.'
           }
         ]
       },
@@ -1533,7 +1623,7 @@ func TestPost(t *testing.T) {
         blocks: [
           {
             type: 'paragraph',
-            text: 'Every Grove project follows the <strong>go-project-base</strong> modular MSC layout. Each domain is a self-contained module under <code>internal/modules/</code>; shared infrastructure lives under <code>internal/app/</code>.'
+            text: 'Every Grove project follows the <strong>grove-base</strong> modular MSC layout. Each domain is a self-contained module under <code>internal/modules/</code>; shared infrastructure lives under <code>internal/app/</code>.'
           },
           {
             type: 'code',
@@ -1571,7 +1661,7 @@ func TestPost(t *testing.T) {
               ['<code>doc/openapi.json</code>', 'Generated OpenAPI 3 spec served at <code>/swagger</code>'],
               ['<code>docker-compose.yml</code>', 'PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana stack'],
               ['<code>atlas.hcl</code>', 'Atlas environments — loads schema via <code>go run ./cmd/atlas</code>'],
-              ['<code>Makefile</code>', 'Dev commands: install, run, dev, migrate-up, db-reset'],
+              ['<code>.golangci.yml</code>', 'golangci-lint config — used by <code>grove fmt</code>, <code>grove lint</code>, <code>grove prepare</code>'],
               ['<code>grove.toml</code>', 'Optional — Grove CLI hot-reload config for <code>grove dev</code>']
             ]
           }
@@ -1719,6 +1809,7 @@ import (
 	"net/http"
 
 	"github.com/alexedwards/scs/v2"
+	"your/module/internal/app/helpers/ratelimiter"
 	"your/module/internal/app/router"
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
@@ -1726,14 +1817,32 @@ import (
 
 type Controller struct {
 	service Service
+	readRL  *ratelimiter.Limiter
+	writeRL *ratelimiter.Limiter
 }
 
-func NewController(service Service) *Controller {
-	return &Controller{service: service}
+func NewController(service Service, settings ratelimiter.Settings) *Controller {
+	opts := []ratelimiter.Option{
+		ratelimiter.WithTrustedProxies(settings.TrustedProxies...),
+	}
+
+	return &Controller{
+		service: service,
+		readRL: ratelimiter.New(
+			settings.Read.Max,
+			settings.Read.Window,
+			opts...,
+		),
+		writeRL: ratelimiter.New(
+			settings.Write.Max,
+			settings.Write.Window,
+			opts...,
+		),
+	}
 }
 
-func Wire(db *gorm.DB) *Controller {
-	return NewController(WireService(db))
+func Wire(db *gorm.DB, settings ratelimiter.Settings) *Controller {
+	return NewController(WireService(db), settings)
 }
 
 func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
@@ -1745,6 +1854,10 @@ func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
 
 // GetPost handles GET /posts/:post_id
 func (ctrl *Controller) GetPost(c fuego.ContextNoBody) (*PostResponse, error) {
+	if err := ctrl.readRL.Check(c.Response(), c.Request()); err != nil {
+		return nil, err
+	}
+
 	id := c.PathParam("post_id")
 
 	post, err := ctrl.service.GetPostByID(c.Context(), id)
@@ -1759,6 +1872,10 @@ func (ctrl *Controller) GetPost(c fuego.ContextNoBody) (*PostResponse, error) {
 
 // CreatePost handles POST /posts
 func (ctrl *Controller) CreatePost(c fuego.ContextWithBody[CreatePostRequest]) (*PostResponse, error) {
+	if err := ctrl.writeRL.Check(c.Response(), c.Request()); err != nil {
+		return nil, err
+	}
+
 	body, err := c.Body()
 	if err != nil {
 		return nil, fuego.HTTPError{Status: http.StatusBadRequest, Err: err}
@@ -1820,7 +1937,7 @@ type PostResponse struct {
 }
 
 type PostsListResponse struct {
-	Items []PostResponse \`json:"items"\`
+	Posts []PostResponse \`json:"posts"\`
 	Total int            \`json:"total"\`
 }`
           },
@@ -1849,6 +1966,7 @@ import (
 	"net/http"
 
 	"github.com/alexedwards/scs/v2"
+	"your/module/internal/app/config"
 	"your/module/internal/app/middleware"
 	"your/module/internal/modules"
 	"github.com/go-fuego/fuego"
@@ -1874,7 +1992,11 @@ func SetupRoutes(
 	fuego.GetStd(s, "/metrics", metricsHandler.ServeHTTP)
 
 	api := fuego.Group(s, "/api/v1")
-	modules.Mount(api, modules.Boot{DB: db, Session: session})
+	modules.Mount(api, modules.Boot{
+		DB:        db,
+		Session:   session,
+		RateLimit: config.RateLimitSettings(),
+	})
 }`
           },
           {
@@ -1890,8 +2012,8 @@ import (
 )
 
 var registry = []Factory{
-	func(b Boot) Module { return posts.Wire(b.DB) },
-	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
+	func(b Boot) Module { return posts.Wire(b.DB, b.RateLimit) },
+	func(b Boot) Module { return auth.Wire(b.DB, b.Session, b.RateLimit) },
 }
 
 func Mount(api *fuego.Server, boot Boot) {

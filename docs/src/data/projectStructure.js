@@ -1,6 +1,6 @@
 /**
  * Interactive project tree for the Architecture → Project Structure docs page.
- * Mirrors caiolandgraf/go-project-base (v2.0.0) layout and file order.
+ * Mirrors caiolandgraf/grove-base layout and file order.
  */
 export const projectStructureTree = [
   // ── cmd/ ──────────────────────────────────────────────────────────────
@@ -34,9 +34,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/caiolandgraf/go-project-base/cmd/scalar"
-	"github.com/caiolandgraf/go-project-base/internal/app/config"
-	"github.com/caiolandgraf/go-project-base/internal/routes"
+	"github.com/caiolandgraf/grove-base/cmd/scalar"
+	"github.com/caiolandgraf/grove-base/internal/app/config"
+	"github.com/caiolandgraf/grove-base/internal/routes"
 	"github.com/go-fuego/fuego"
 	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
@@ -87,8 +87,8 @@ func main() {
 
 import (
 	"ariga.io/atlas-provider-gorm/gormschema"
-	_ "github.com/caiolandgraf/go-project-base/internal/modules"
-	"github.com/caiolandgraf/go-project-base/internal/app/database"
+	_ "github.com/caiolandgraf/grove-base/internal/modules"
+	"github.com/caiolandgraf/grove-base/internal/app/database"
 )
 
 func main() {
@@ -432,8 +432,9 @@ func Users(db *gorm.DB) *Repo {
 }
 
 type Boot struct {
-	DB      *gorm.DB
-	Session *scs.SessionManager
+	DB        *gorm.DB
+	Session   *scs.SessionManager
+	RateLimit ratelimiter.Settings
 }`
   },
   {
@@ -443,8 +444,8 @@ type Boot struct {
     path: 'internal/modules/register.go',
     desc: 'Module registry — grove make:resource adds new Wire() factories here.',
     code: `var registry = []Factory{
-	func(b Boot) Module { return users.Wire(b.DB) },
-	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
+	func(b Boot) Module { return users.Wire(b.DB, b.RateLimit) },
+	func(b Boot) Module { return auth.Wire(b.DB, b.Session, b.RateLimit) },
 }
 
 func Mount(api *fuego.Server, boot Boot) {
@@ -482,7 +483,7 @@ func Mount(api *fuego.Server, boot Boot) {
 	session *scs.SessionManager,
 	metricsHandler http.Handler,
 ) {
-	fuego.Use(s, otelhttp.NewMiddleware("go-project-base"))
+	fuego.Use(s, otelhttp.NewMiddleware("grove-base"))
 	fuego.Use(s, middleware.CORSMiddleware(middleware.DefaultCORSConfig()))
 	fuego.Use(s, middleware.SessionMiddleware(session))
 
@@ -491,7 +492,11 @@ func Mount(api *fuego.Server, boot Boot) {
 	fuego.GetStd(s, "/metrics", metricsHandler.ServeHTTP)
 
 	api := fuego.Group(s, "/api/v1")
-	modules.Mount(api, modules.Boot{DB: db, Session: session})
+	modules.Mount(api, modules.Boot{
+		DB:        db,
+		Session:   session,
+		RateLimit: config.RateLimitSettings(),
+	})
 }`
   },
 
@@ -621,7 +626,7 @@ func Mount(api *fuego.Server, boot Boot) {
     isDir: false,
     level: 0,
     path: '.air.toml',
-    desc: 'Air hot-reload configuration (used by make dev in go-project-base).'
+    desc: 'Air hot-reload configuration (used by make dev in grove-base).'
   },
   {
     name: 'atlas.hcl',
@@ -646,11 +651,11 @@ env "local" {
     desc: 'Full infrastructure stack — PostgreSQL, Redis, Jaeger, Prometheus, Loki, Promtail, Grafana.'
   },
   {
-    name: 'Makefile',
+    name: '.golangci.yml',
     isDir: false,
     level: 0,
-    path: 'Makefile',
-    desc: 'Dev commands: install, run, dev, test, migrate-create, migrate-up, db-reset.'
+    path: '.golangci.yml',
+    desc: 'golangci-lint configuration — used by grove fmt, grove lint, and grove prepare.'
   },
   {
     name: 'go.mod',
@@ -677,7 +682,7 @@ DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=mcs_dctfweb_sender
-OTEL_SERVICE_NAME=go-project-base
+OTEL_SERVICE_NAME=grove-base
 LOG_LEVEL=info`
   },
   {
@@ -685,7 +690,7 @@ LOG_LEVEL=info`
     isDir: false,
     level: 0,
     path: 'grove.toml',
-    desc: 'Optional Grove CLI hot-reload config — added when using grove dev (not in go-project-base by default).',
+    desc: 'Optional Grove CLI hot-reload config — added when using grove dev (not in grove-base by default).',
     tip: 'Created by <code>grove setup</code> or manually. Configures <code>grove dev</code> watch paths and excludes.'
   },
   {
@@ -697,7 +702,7 @@ LOG_LEVEL=info`
   }
 ]
 
-/** Plain-text tree matching go-project-base README for docs tables and copy blocks. */
+/** Plain-text tree matching grove-base README for docs tables and copy blocks. */
 export const projectStructureAscii = `my-api/
 ├── cmd/
 │   ├── api/
@@ -736,5 +741,5 @@ export const projectStructureAscii = `my-api/
 ├── .air.toml                      # Air hot reload config
 ├── atlas.hcl                      # Atlas migration config
 ├── docker-compose.yml             # Full infrastructure stack
-├── Makefile                       # Dev commands
+├── .golangci.yml                  # golangci-lint config (grove fmt, lint, prepare)
 └── go.mod                         # Go module definition`

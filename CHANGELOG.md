@@ -4,10 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
+## [2.3.0] - 2026-06-16
+
+### Added
+- Quality commands replace Makefile targets in Grove projects:
+  - `grove prepare` — format, lint, test, and build before committing
+  - `grove check` — lint, test, and build without modifying files
+  - `grove fmt`, `grove lint`, `grove lint:fix`
+  - `grove test:unit`, `grove test:all` — `go test ./...` with or without `-short`
+  - `grove build:binaries` — compile api and atlas to `.grove/bin/`
+
+### Changed
+- `grove setup` now scaffolds from the latest [`grove-base`](https://github.com/caiolandgraf/grove-base) template (modular MSC architecture with rate limiting).
+- Generators align with grove-base: controllers wire `ratelimiter.Settings`, services use a `Store` interface, and seeders live under `internal/app/database/seeders/`.
+- `make:resource` registers new modules with `Wire(b.DB, b.RateLimit)` in `internal/modules/register.go`.
+- Seed runner scaffold uses `config.Load()` and `config.InitDatabase()` instead of legacy app globals.
+- Documentation updated for rate limiting, module registration, and the seed workflow.
+
 ## [2.2.0] - 2026-06-10
 
 ### Changed
-- `grove setup` now scaffolds from [`go-project-base`](https://github.com/caiolandgraf/go-project-base) v2.0.0 (modular MSC architecture).
+- `grove setup` now scaffolds from [`grove-base`](https://github.com/caiolandgraf/grove-base) v2.0.0 (modular MSC architecture).
 - All generators (`make:model`, `make:service`, `make:controller`, `make:dto`, `make:resource`) now scaffold domain modules under `internal/modules/<domain>/`.
 - `make:resource` registers new modules in `internal/modules/register.go` instead of wiring routes manually.
 - `make:middleware` scaffolds into `internal/app/middleware/`.
@@ -48,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Panic formatting in `grove dev` now detects stack traces embedded in structured JSON logs.
 - Compose cleanup now removes unused volume definitions when observability services are disabled.
 
+[2.3.0]: https://github.com/caiolandgraf/grove/releases/tag/v2.3.0
 [2.2.0]: https://github.com/caiolandgraf/grove/releases/tag/v2.2.0
 [2.1.0]: https://github.com/caiolandgraf/grove/releases/tag/v2.1.0
 [2.0.0]: https://github.com/caiolandgraf/grove/releases/tag/v2.0.0

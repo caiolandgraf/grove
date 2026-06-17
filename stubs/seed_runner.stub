@@ -2,26 +2,38 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
-	"{{.Module}}/internal/app"
-	"{{.Module}}/internal/database/seeders"
+	"{{.Module}}/internal/app/config"
+	"{{.Module}}/internal/app/database/seeders"
 )
 
 func main() {
-	// Initialize shared singletons (DB, Session, Metrics, etc.)
-	// This should load .env via your app bootstrap if configured in go-project-base.
-	app.Init()
-
-	if app.DB == nil {
-		fmt.Fprintln(os.Stderr, "database not initialized (app.DB is nil)")
+	if err := run(); err != nil {
+		slog.Error("seed failed", "error", err)
 		os.Exit(1)
 	}
+}
 
-	if err := seeders.Run(app.DB); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+func run() error {
+	config.Load()
+	config.InitLogger()
+
+	db, err := config.InitDatabase()
+	if err != nil {
+		return fmt.Errorf("connect to database: %w", err)
+	}
+	defer func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}()
+
+	if err := seeders.Run(db); err != nil {
+		return fmt.Errorf("run seeders: %w", err)
 	}
 
-	fmt.Println("seeders completed")
+	slog.Info("seeders executed successfully")
+	return nil
 }

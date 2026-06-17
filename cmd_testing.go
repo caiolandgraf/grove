@@ -110,6 +110,75 @@ file change. Flags can be combined: ` + colorGreen + `-wc` + colorReset + `.
 	RunE: runTest,
 }
 
+var testUnitCmd = &cobra.Command{
+	Use:   "test:unit",
+	Short: "Run unit tests across all packages",
+	Long: bold("test:unit") + ` runs ` + colorCyan + `go test -race -count=1 -short ./...` + colorReset + `
+across every package in the project. Integration tests tagged with
+` + colorCyan + `testing.Short()` + colorReset + ` are skipped.
+
+` + colorGray + `Examples:` + colorReset + `
+  grove test:unit`,
+	RunE: runTestUnit,
+}
+
+var testAllCmd = &cobra.Command{
+	Use:   "test:all",
+	Short: "Run all tests, including integration tests",
+	Long: bold("test:all") + ` runs ` + colorCyan + `go test -race -count=1 ./...` + colorReset + `
+across every package in the project, including integration tests.
+
+` + colorGray + `Examples:` + colorReset + `
+  grove test:all`,
+	RunE: runTestAll,
+}
+
+func runTestUnit(_ *cobra.Command, _ []string) error {
+	if err := requireGoModule(); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s  %s\n", badge(colorBgBlue, "TEST"), gray("go test -race -short ./..."))
+	fmt.Println()
+
+	if err := runProjectGoTest(true); err != nil {
+		fmt.Println()
+		fmt.Printf("  %s\n", badge(colorBgRed, "TEST FAILED"))
+		fmt.Println()
+		return fmt.Errorf("one or more tests failed")
+	}
+
+	fmt.Println()
+	fmt.Println(done("Unit tests passed."))
+	fmt.Println()
+
+	return nil
+}
+
+func runTestAll(_ *cobra.Command, _ []string) error {
+	if err := requireGoModule(); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	fmt.Printf("  %s  %s\n", badge(colorBgBlue, "TEST"), gray("go test -race ./..."))
+	fmt.Println()
+
+	if err := runProjectGoTest(false); err != nil {
+		fmt.Println()
+		fmt.Printf("  %s\n", badge(colorBgRed, "TEST FAILED"))
+		fmt.Println()
+		return fmt.Errorf("one or more tests failed")
+	}
+
+	fmt.Println()
+	fmt.Println(done("All tests passed."))
+	fmt.Println()
+
+	return nil
+}
+
 func init() {
 	testCmd.Flags().BoolVarP(
 		&testCoverage,

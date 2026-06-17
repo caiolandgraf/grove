@@ -21,7 +21,7 @@ import (
 // ──────────────────────────────────────────────
 
 const (
-	setupTemplateRepo   = "caiolandgraf/go-project-base"
+setupTemplateRepo   = "caiolandgraf/grove-base"
 	setupTemplateBranch = "main"
 )
 

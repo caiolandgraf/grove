@@ -2,6 +2,7 @@ package {{.Package}}
 
 import (
 	"github.com/alexedwards/scs/v2"
+	"{{.Module}}/internal/app/helpers/ratelimiter"
 	"{{.Module}}/internal/app/router"
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
@@ -9,14 +10,32 @@ import (
 
 type Controller struct {
 	service Service
+	readRL  *ratelimiter.Limiter
+	writeRL *ratelimiter.Limiter
 }
 
-func NewController(service Service) *Controller {
-	return &Controller{service: service}
+func NewController(service Service, settings ratelimiter.Settings) *Controller {
+	opts := []ratelimiter.Option{
+		ratelimiter.WithTrustedProxies(settings.TrustedProxies...),
+	}
+
+	return &Controller{
+		service: service,
+		readRL: ratelimiter.New(
+			settings.Read.Max,
+			settings.Read.Window,
+			opts...,
+		),
+		writeRL: ratelimiter.New(
+			settings.Write.Max,
+			settings.Write.Window,
+			opts...,
+		),
+	}
 }
 
-func Wire(db *gorm.DB) *Controller {
-	return NewController(WireService(db))
+func Wire(db *gorm.DB, settings ratelimiter.Settings) *Controller {
+	return NewController(WireService(db), settings)
 }
 
 func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {

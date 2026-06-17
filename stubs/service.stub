@@ -6,12 +6,17 @@ type Service interface {
 	// TODO: add business methods (Create{{.Name}}, Get{{.Name}}ByID, etc.)
 }
 
-type service struct {
-	repo *Repo
+// Store abstracts persistence for {{.NameLower}} operations (enables mocks in tests).
+type Store interface {
+	// TODO: add store methods matching your Repo
 }
 
-func NewService(repo *Repo) Service {
-	return &service{repo: repo}
+type service struct {
+	store Store
+}
+
+func NewService(store Store) Service {
+	return &service{store: store}
 }
 
 func WireService(db *gorm.DB) Service {

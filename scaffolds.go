@@ -355,9 +355,11 @@ func wireModule(name string) error {
 	content := string(contentBytes)
 	pkg := modulePackage(name)
 	moduleImport := fmt.Sprintf("%s/internal/modules/%s", getModuleName(), pkg)
-	wireLine := fmt.Sprintf("\tfunc(b Boot) Module { return %s.Wire(b.DB) },", pkg)
+	wireLine := fmt.Sprintf("\tfunc(b Boot) Module { return %s.Wire(b.DB, b.RateLimit) },", pkg)
 
-	if strings.Contains(content, wireLine) || strings.Contains(content, pkg+".Wire(") {
+	if strings.Contains(content, wireLine) ||
+		strings.Contains(content, pkg+".Wire(b.DB, b.RateLimit)") ||
+		strings.Contains(content, pkg+".Wire(b.DB)") {
 		return nil
 	}
 

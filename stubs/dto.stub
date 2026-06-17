@@ -13,6 +13,6 @@ type {{.Name}}Response struct {
 }
 
 type {{.PluralName}}ListResponse struct {
-	Items []{{.Name}}Response `json:"items"`
-	Total int                 `json:"total"`
+	{{.PluralName}} []{{.Name}}Response `json:"{{.RoutePrefix}}"`
+	Total         int                 `json:"total"`
 }

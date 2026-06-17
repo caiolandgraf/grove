@@ -361,7 +361,7 @@ const steps = [
   {
     shortTitle: 'Scaffold',
     title: '1. Create a New Project',
-    description: `Run <code>grove setup</code> to scaffold a clean Grove codebase. It downloads the template from <code>caiolandgraf/go-project-base</code>, configures environment vars, and installs Go modules.`,
+    description: `Run <code>grove setup</code> to scaffold a clean Grove codebase. It downloads the template from <code>caiolandgraf/grove-base</code>, configures environment vars, and installs Go modules.`,
     actionText: 'grove setup blog-api',
     successMessage: 'Project scaffolded successfully!'
   },
@@ -563,9 +563,9 @@ import (
 )
 
 var registry = []Factory{
-	func(b Boot) Module { return users.Wire(b.DB) },
+	func(b Boot) Module { return users.Wire(b.DB, b.RateLimit) },
 	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
-	func(b Boot) Module { return posts.Wire(b.DB) },
+	func(b Boot) Module { return posts.Wire(b.DB, b.RateLimit) },
 }
 
 func Mount(api *fuego.Server, boot Boot) {
@@ -582,7 +582,7 @@ import (
 )
 
 var registry = []Factory{
-	func(b Boot) Module { return users.Wire(b.DB) },
+	func(b Boot) Module { return users.Wire(b.DB, b.RateLimit) },
 	func(b Boot) Module { return auth.Wire(b.DB, b.Session) },
 }
 
@@ -687,7 +687,7 @@ type PostResponse struct {
 }
 
 type PostsListResponse struct {
-	Items []PostResponse \`json:"items"\`
+	Posts []PostResponse \`json:"posts"\`
 	Total int            \`json:"total"\`
 }`
         : `package posts
@@ -705,7 +705,7 @@ type PostResponse struct {
 }
 
 type PostsListResponse struct {
-	Items []PostResponse \`json:"items"\`
+	Posts []PostResponse \`json:"posts"\`
 	Total int            \`json:"total"\`
 }`
     },
@@ -721,12 +721,17 @@ type Service interface {
 	// TODO: add business methods (CreatePost, GetPostByID, etc.)
 }
 
-type service struct {
-	repo *Repo
+// Store abstracts persistence for post operations (enables mocks in tests).
+type Store interface {
+	// TODO: add store methods matching your Repo
 }
 
-func NewService(repo *Repo) Service {
-	return &service{repo: repo}
+type service struct {
+	store Store
+}
+
+func NewService(store Store) Service {
+	return &service{store: store}
 }
 
 func WireService(db *gorm.DB) Service {
@@ -741,6 +746,7 @@ func WireService(db *gorm.DB) Service {
 
 import (
 	"github.com/alexedwards/scs/v2"
+	"blog-api/internal/app/helpers/ratelimiter"
 	"blog-api/internal/app/router"
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
@@ -748,14 +754,32 @@ import (
 
 type Controller struct {
 	service Service
+	readRL  *ratelimiter.Limiter
+	writeRL *ratelimiter.Limiter
 }
 
-func NewController(service Service) *Controller {
-	return &Controller{service: service}
+func NewController(service Service, settings ratelimiter.Settings) *Controller {
+	opts := []ratelimiter.Option{
+		ratelimiter.WithTrustedProxies(settings.TrustedProxies...),
+	}
+
+	return &Controller{
+		service: service,
+		readRL: ratelimiter.New(
+			settings.Read.Max,
+			settings.Read.Window,
+			opts...,
+		),
+		writeRL: ratelimiter.New(
+			settings.Write.Max,
+			settings.Write.Window,
+			opts...,
+		),
+	}
 }
 
-func Wire(db *gorm.DB) *Controller {
-	return NewController(WireService(db))
+func Wire(db *gorm.DB, settings ratelimiter.Settings) *Controller {
+	return NewController(WireService(db), settings)
 }
 
 func (ctrl *Controller) Mount(api *fuego.Server, session *scs.SessionManager) {
@@ -842,7 +866,7 @@ const explorerTree = computed(() => {
     { name: '.air.toml', depth: 1, lang: 'toml', path: '.air.toml' },
     { name: 'atlas.hcl', depth: 1, lang: 'hcl', path: 'atlas.hcl' },
     { name: 'docker-compose.yml', depth: 1, lang: 'yaml', path: 'docker-compose.yml' },
-    { name: 'Makefile', depth: 1, lang: 'makefile', path: 'Makefile' },
+    { name: '.golangci.yml', depth: 1, lang: 'yaml', path: '.golangci.yml' },
     { name: 'go.mod', depth: 1, lang: 'go', path: 'go.mod' },
     { name: '.env.example', depth: 1, lang: 'text', path: '.env.example' },
     { name: 'grove.toml', depth: 1, lang: 'toml', path: 'grove.toml' },
@@ -970,7 +994,7 @@ function runCommand() {
     push('dim',  `  ────────────────────────────────────`)
     push('log',  `  <b>Project</b>    blog-api`)
     push('log',  `  <b>Module</b>     blog-api`)
-    push('dim',  `  Template   caiolandgraf/go-project-base`)
+    push('dim',  `  Template   caiolandgraf/grove-base`)
     push('dim',  `  ────────────────────────────────────`)
     push('ok',   `  <span class="t-green">✓</span> Downloading template     <span class="t-dim">425 KB</span>`)
     push('ok',   `  <span class="t-green">✓</span> Extracting files          <span class="t-dim">42 files</span>`)

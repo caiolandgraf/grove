@@ -21,7 +21,7 @@ var makeSeederCmd = &cobra.Command{
 	Short: "Scaffold a new database seeder",
 	Long: bold(
 		"make:seeder",
-	) + ` scaffolds a new database seeder in ` + colorCyan + `internal/database/seeders/` + colorReset + `.
+	) + ` scaffolds a new database seeder in ` + colorCyan + `internal/app/database/seeders/` + colorReset + `.
 
 Seeders follow a simple interface:
   - Name() string
@@ -37,7 +37,7 @@ The generated file will be named ` + colorCyan + `<name>_seeder.go` + colorReset
   grove make:seeder BillCategories
   grove make:seeder order_items
 
-` + colorYellow + `Tip:` + colorReset + ` use ` + colorGreen + `--register` + colorReset + ` to add the seeder to ` + colorCyan + `internal/database/seeders/seeder.go` + colorReset + ` automatically when possible.`,
+` + colorYellow + `Tip:` + colorReset + ` use ` + colorGreen + `--register` + colorReset + ` to add the seeder to ` + colorCyan + `internal/app/database/seeders/seeder.go` + colorReset + ` automatically when possible.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMakeSeeder,
 }
@@ -47,12 +47,12 @@ func init() {
 		&makeSeederRegister,
 		"register",
 		false,
-		"Also register the new seeder in internal/database/seeders/seeder.go (if present)",
+		"Also register the new seeder in internal/app/database/seeders/seeder.go (if present)",
 	)
 	makeSeederCmd.Flags().StringVar(
 		&makeSeederPath,
 		"path",
-		filepath.Join("internal", "database", "seeders"),
+		filepath.Join("internal", "app", "database", "seeders"),
 		"Target seeders directory",
 	)
 }

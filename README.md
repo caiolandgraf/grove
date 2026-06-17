@@ -14,7 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Release](https://img.shields.io/badge/release-v2.2.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.2.0)
+[![Release](https://img.shields.io/badge/release-v2.3.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.3.0)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
@@ -94,7 +94,7 @@ The OpenAPI / Swagger UI is available at `http://localhost:8080/swagger` automat
 | `grove make:model <Name> -r` | Full resource — service, controller, DTO, docs + module registration |
 | `grove make:controller <Name>` | Scaffold a module controller in `internal/modules/<domain>/` |
 | `grove make:service <Name>` | Scaffold a service in `internal/modules/<domain>/service.go` |
-| `grove make:seeder <Name>` | Scaffold a database seeder in `internal/database/seeders/` |
+| `grove make:seeder <Name>` | Scaffold a database seeder in `internal/app/database/seeders/` |
 | `grove make:seed` | Scaffold a seed runner entrypoint in `cmd/seed/main.go` (used by `grove db:seed`) |
 | `grove make:dto <Name>` | Scaffold DTO types in `internal/modules/<domain>/dto.go` |
 | `grove make:middleware <Name>` | Scaffold an HTTP middleware in `internal/app/middleware/` |
@@ -113,16 +113,16 @@ Infers model relationships from foreign key fields (for example, `UserID`) and a
 
 #### Seeders (`make:seeder`, `make:seed`, `db:seed`)
 
-Grove supports a simple, explicit seeding workflow compatible with `go-project-base`.
+Grove supports a simple, explicit seeding workflow compatible with `grove-base`.
 
-- `grove make:seeder <Name>` scaffolds a new seeder file in `internal/database/seeders/` following the interface:
+- `grove make:seeder <Name>` scaffolds a new seeder file in `internal/app/database/seeders/` following the interface:
 
   - `Name() string`
   - `Seed(db *gorm.DB) error`
 
-- `grove make:seed` scaffolds the seed runner entrypoint at `cmd/seed/main.go`. This runner should initialize your app (DB, session, etc.) and call:
+- `grove make:seed` scaffolds the seed runner entrypoint at `cmd/seed/main.go`. This runner loads config, connects to the database, and calls:
 
-  - `internal/database/seeders.Run(app.DB)`
+  - `internal/app/database/seeders.Run(db)`
 
 - `grove db:seed` loads `.env` (if present) and runs seeders by executing:
 
@@ -236,6 +236,21 @@ grove make:relations --model PaymentMethod --model Order
 
 If all migrations are already applied, Grove prints an `UP TO DATE` badge instead.
 
+### Quality
+
+Run from your Grove project root — no Makefile required.
+
+| Command | Description |
+|---|---|
+| `grove prepare` | Full pre-commit pipeline: fmt → lint:fix → lint → test:unit → build:binaries |
+| `grove check` | CI checks without modifying files: lint → test:unit → build:binaries |
+| `grove fmt` | `golangci-lint fmt ./...` + optional `golines` |
+| `grove lint` | `golangci-lint run ./...` |
+| `grove lint:fix` | `golangci-lint run --fix ./...` |
+| `grove test:unit` | `go test -race -short ./...` |
+| `grove test:all` | `go test -race ./...` (includes integration tests) |
+| `grove build:binaries` | Build `cmd/api` and `cmd/atlas` to `.grove/bin/` |
+
 ### Maintenance
 
 | Command | Description |
@@ -296,7 +311,7 @@ my-api/
 ├── .air.toml                      # Air hot reload config
 ├── atlas.hcl                      # Atlas migration config
 ├── docker-compose.yml             # Full infrastructure stack
-├── Makefile                       # Dev commands
+├── .golangci.yml                  # golangci-lint config (grove fmt, lint, prepare)
 └── go.mod                         # Go module definition
 ```
 
@@ -321,7 +336,7 @@ Each domain under `internal/modules/` is self-contained: **model + repo**, **dto
 | `migrations/` | Versioned Atlas SQL migration files + `atlas.sum` |
 | `docker-compose.yml` | PostgreSQL, Redis, Jaeger, Prometheus, Loki, Grafana |
 | `atlas.hcl` | Atlas configuration — program mode via `cmd/atlas` |
-| `Makefile` | Dev commands: install, run, dev, migrate-up |
+| `.golangci.yml` | golangci-lint config — used by `grove fmt`, `grove lint`, `grove prepare` |
 | `grove.toml` | Optional `[dev]` section for `grove dev` |
 
 ---

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const version = "2.2.0"
+const version = "2.3.0"
 
 var rootCmd = &cobra.Command{
 	Use:           "grove",
@@ -43,6 +43,15 @@ func buildBanner() string {
 		"    grove " + colorGreen + "make:seed" + colorReset + "               Scaffold a seed runner entrypoint (cmd/seed)\n"
 
 	update := "\n" +
+		"  " + colorBold + colorGray + "QUALITY" + colorReset + "\n" +
+		"    grove " + colorGray + "prepare" + colorReset + "         Format, lint, test, and build before committing\n" +
+		"    grove " + colorGray + "check" + colorReset + "           Run CI checks without modifying files\n" +
+		"    grove " + colorGray + "fmt" + colorReset + "             Format code with golangci-lint and golines\n" +
+		"    grove " + colorGray + "lint" + colorReset + "            Run golangci-lint\n" +
+		"    grove " + colorGray + "lint:fix" + colorReset + "        Auto-fix lint issues\n" +
+		"    grove " + colorGray + "build:binaries" + colorReset + "  Build api and atlas to .grove/bin\n"
+
+	maintenance := "\n" +
 		"  " + colorBold + colorGray + "MAINTENANCE" + colorReset + "\n" +
 		"    grove " + colorGray + "update" + colorReset + "      Update Grove project dependencies to their latest versions\n"
 
@@ -67,7 +76,9 @@ func buildBanner() string {
 	testing := "\n" +
 		"  " + colorBold + colorGray + "TESTING" + colorReset + "\n" +
 		"    grove " + colorGreen + "make:test" + colorReset + "        <Name>   Scaffold a new gest v2 test file in internal/tests/\n" +
-		"    grove " + colorBlue + "test" + colorReset + "              Run all tests (gest CLI if installed, else go test -v)\n" +
+		"    grove " + colorBlue + "test" + colorReset + "              Run gest tests in internal/tests/\n" +
+		"    grove " + colorBlue + "test:unit" + colorReset + "         Run unit tests (go test -short ./...)\n" +
+		"    grove " + colorBlue + "test:all" + colorReset + "          Run all tests, including integration tests\n" +
 		"    grove " + colorBlue + "test -c" + colorReset + "           Run tests + display per-suite coverage report\n" +
 		"    grove " + colorBlue + "test -w" + colorReset + "           Watch mode — re-run tests on every save\n" +
 		"    grove " + colorBlue + "test -wc" + colorReset + "          Watch mode + coverage report\n"
@@ -77,7 +88,7 @@ func buildBanner() string {
 		"    grove " + colorGray + "setup" + colorReset + "       <project-name>   Scaffold a new Grove project from template\n" +
 		"    grove " + colorGray + "completion" + colorReset + "  [bash|zsh|fish|powershell]   Generate completion script\n"
 
-	return logo + tagline + "\n" + sep + generators + server + database + testing + setup + update + "\n" + sep + "\n"
+	return logo + tagline + "\n" + sep + generators + server + database + testing + setup + update + maintenance + "\n" + sep + "\n"
 }
 
 func init() {
@@ -98,6 +109,7 @@ func init() {
 		&cobra.Group{ID: "server", Title: "Server & Build:"},
 		&cobra.Group{ID: "database", Title: "Database:"},
 		&cobra.Group{ID: "setup", Title: "Setup:"},
+		&cobra.Group{ID: "quality", Title: "Quality:"},
 		&cobra.Group{ID: "maintenance", Title: "Maintenance:"},
 	)
 
@@ -129,8 +141,12 @@ func init() {
 
 	// ── Testing ───────────────────────────────────────────────────────────────
 	testCmd.GroupID = "testing"
+	testUnitCmd.GroupID = "testing"
+	testAllCmd.GroupID = "testing"
 
 	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(testUnitCmd)
+	rootCmd.AddCommand(testAllCmd)
 
 	// ── Server & Build ────────────────────────────────────────────────────────
 	upCmd.GroupID = "server"
@@ -139,12 +155,14 @@ func init() {
 	devAirCmd.GroupID = "server"
 	buildCmd.GroupID = "server"
 	startCmd.GroupID = "server"
+	buildBinariesCmd.GroupID = "server"
 
 	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(devAirCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(buildBinariesCmd)
 	rootCmd.AddCommand(startCmd)
 
 	// ── Database ──────────────────────────────────────────────────────────────
@@ -168,6 +186,19 @@ func init() {
 
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(completionCmd)
+
+	// ── Quality ───────────────────────────────────────────────────────────────
+	fmtCmd.GroupID = "quality"
+	lintCmd.GroupID = "quality"
+	lintFixCmd.GroupID = "quality"
+	checkCmd.GroupID = "quality"
+	prepareCmd.GroupID = "quality"
+
+	rootCmd.AddCommand(fmtCmd)
+	rootCmd.AddCommand(lintCmd)
+	rootCmd.AddCommand(lintFixCmd)
+	rootCmd.AddCommand(checkCmd)
+	rootCmd.AddCommand(prepareCmd)
 
 	// ── Maintenance ───────────────────────────────────────────────────────────
 	updateCmd.GroupID = "maintenance"
