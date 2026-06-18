@@ -281,7 +281,7 @@ func removeServiceBlocks(
 
 		if !inServices {
 			out = append(out, line)
-			if trimmed == "services:" {
+			if isTopLevelKey(line) && trimmed == "services:" {
 				inServices = true
 			}
 			i++
@@ -394,7 +394,7 @@ func removeVolumeBlocks(
 
 		if !inVolumes {
 			out = append(out, line)
-			if trimmed == "volumes:" {
+			if isTopLevelKey(line) && trimmed == "volumes:" {
 				inVolumes = true
 			}
 			i++
@@ -440,7 +440,7 @@ func collectNamedVolumes(lines []string) map[string]bool {
 		trimmed := strings.TrimSpace(line)
 
 		if !inServices {
-			if trimmed == "services:" {
+			if isTopLevelKey(line) && trimmed == "services:" {
 				inServices = true
 			}
 			continue
@@ -504,7 +504,7 @@ func pruneUnusedVolumes(lines []string, used map[string]bool) []string {
 		trimmed := strings.TrimSpace(line)
 
 		if !inVolumes {
-			if trimmed == "volumes:" {
+			if isTopLevelKey(line) && trimmed == "volumes:" {
 				inVolumes = true
 				keptAny = false
 				volumeHeaderIndex = len(out)
@@ -524,6 +524,8 @@ func pruneUnusedVolumes(lines []string, used map[string]bool) []string {
 			inVolumes = false
 			volumeHeaderIndex = -1
 			keptAny = false
+			out = append(out, line)
+			i++
 			continue
 		}
 

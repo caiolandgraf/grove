@@ -14,7 +14,7 @@
 <br />
 
 [![Go Version](https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Release](https://img.shields.io/badge/release-v2.3.0-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.3.0)
+[![Release](https://img.shields.io/badge/release-v2.3.1-c82838?style=flat-square)](https://github.com/caiolandgraf/grove/releases/tag/v2.3.1)
 [![License](https://img.shields.io/badge/license-MIT-c82838?style=flat-square)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-caiolandgraf.github.io%2Fgrove-c82838?style=flat-square)](https://caiolandgraf.github.io/grove/)
 
